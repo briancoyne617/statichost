@@ -1,0 +1,13 @@
+services:
+  library:
+    build: .
+    container_name: library
+    restart: unless-stopped
+    ports:
+      - "8088:8080"
+    environment:
+      SITE_TITLE: "Brian's Library"
+    volumes:
+      # Your HTML lives here. The app only ever READS these; the one file it writes is
+      # _manifest.json (the curated titles/visibility), which sits alongside them.
+      - /srv/www:/content

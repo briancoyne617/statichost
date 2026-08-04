@@ -1,0 +1,169 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>{{ site_title }}</title>
+<script>(function(){var t=localStorage.getItem('lib-theme');if(t)document.documentElement.dataset.theme=t;})();</script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  *,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+  :root{
+    --bg:#F7F5F0; --surface:#fff; --border:#E4DFD4; --text:#17150F; --text-2:#5d574b; --text-3:#9a9384;
+    --accent:#2B2BE6; --accent-2:#FF4D2E; --shadow:0 1px 2px rgba(0,0,0,.04),0 8px 24px rgba(0,0,0,.06);
+  }
+  html[data-theme="dark"]{
+    --bg:#121110; --surface:#1c1a17; --border:#2f2c26; --text:#f2ede2; --text-2:#b8b1a3; --text-3:#857f73;
+    --accent:#7a7aff; --shadow:0 1px 2px rgba(0,0,0,.3),0 8px 24px rgba(0,0,0,.25);
+  }
+  body{font-family:"Space Grotesk",-apple-system,BlinkMacSystemFont,"Segoe UI",sans-serif;
+       background:var(--bg);color:var(--text);line-height:1.5;-webkit-font-smoothing:antialiased}
+  .wrap{max-width:1080px;margin:0 auto;padding:3rem 1.25rem 6rem}
+
+  header{display:flex;align-items:baseline;gap:1rem;margin-bottom:2rem;flex-wrap:wrap}
+  h1{font-size:clamp(26px,4vw,38px);font-weight:700;letter-spacing:-.03em}
+  .count{font-size:13px;color:var(--text-3);font-variant-numeric:tabular-nums}
+  .theme{margin-left:auto;background:none;border:1.5px solid var(--border);color:var(--text-2);
+         width:34px;height:34px;border-radius:999px;cursor:pointer;font-size:14px}
+
+  .grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(240px,1fr));gap:1rem}
+  .card{display:block;text-decoration:none;color:inherit;background:var(--surface);
+        border:1.5px solid var(--border);border-radius:14px;padding:1.1rem 1.2rem;
+        box-shadow:var(--shadow);transition:transform .12s,border-color .12s;position:relative;overflow:hidden}
+  .card::before{content:"";position:absolute;inset:0 auto 0 0;width:3px;background:var(--accent);
+                opacity:0;transition:opacity .12s}
+  .card:hover{transform:translateY(-2px);border-color:var(--accent)}
+  .card:hover::before{opacity:1}
+  .card .t{font-weight:600;font-size:15px;letter-spacing:-.01em;margin-bottom:.3rem;
+           display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .card .n{font-size:12.5px;color:var(--text-2);margin-bottom:.5rem;
+           display:-webkit-box;-webkit-line-clamp:2;-webkit-box-orient:vertical;overflow:hidden}
+  .card .m{font-size:11px;color:var(--text-3);font-variant-numeric:tabular-nums;
+           display:flex;gap:.5rem;align-items:center}
+  .card .m .dot{width:3px;height:3px;border-radius:99px;background:var(--text-3)}
+
+  .empty{border:1.5px dashed var(--border);border-radius:14px;padding:2.5rem;text-align:center;color:var(--text-3)}
+
+  /* Discreet pencil, bottom-right. */
+  .fab{position:fixed;right:20px;bottom:20px;width:44px;height:44px;border-radius:999px;
+       background:var(--surface);border:1.5px solid var(--border);box-shadow:var(--shadow);
+       cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text-3);
+       transition:color .12s,border-color .12s,transform .12s;z-index:50}
+  .fab:hover{color:var(--accent);border-color:var(--accent);transform:scale(1.05)}
+
+  /* Editor */
+  .sheet{position:fixed;inset:0;background:rgba(0,0,0,.35);display:none;z-index:60;
+         align-items:flex-end;justify-content:center}
+  .sheet.open{display:flex}
+  .panel{background:var(--bg);width:100%;max-width:760px;max-height:86vh;overflow:auto;
+         border-radius:18px 18px 0 0;padding:1.4rem 1.4rem 1.6rem;border:1.5px solid var(--border)}
+  @media(min-width:700px){.sheet{align-items:center}.panel{border-radius:18px}}
+  .panel h2{font-size:17px;margin-bottom:.2rem}
+  .panel .sub{font-size:12.5px;color:var(--text-3);margin-bottom:1rem}
+  .row{display:grid;grid-template-columns:auto 1fr;gap:.6rem;align-items:start;
+       padding:.7rem 0;border-top:1px solid var(--border)}
+  .row input[type=checkbox]{margin-top:.55rem;width:16px;height:16px;accent-color:var(--accent)}
+  .row .fields{min-width:0}
+  .row input[type=text]{width:100%;font-family:inherit;font-size:14px;padding:.45rem .6rem;
+       border:1.5px solid var(--border);border-radius:9px;background:var(--surface);color:var(--text)}
+  .row input[type=text]:focus{outline:none;border-color:var(--accent)}
+  .row .note{margin-top:.35rem;font-size:12.5px}
+  .row .file{font-size:11px;color:var(--text-3);margin-top:.3rem;font-family:ui-monospace,monospace;
+             word-break:break-all}
+  .row.off .fields{opacity:.45}
+  .acts{display:flex;gap:.5rem;margin-top:1.2rem;align-items:center}
+  .btn{font-family:inherit;font-size:13.5px;font-weight:600;padding:.55rem 1.1rem;border-radius:999px;
+       cursor:pointer;border:1.5px solid var(--border);background:var(--surface);color:var(--text)}
+  .btn.primary{background:var(--accent);border-color:var(--accent);color:#fff}
+  .saved{font-size:12.5px;color:var(--text-3);margin-left:auto}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>{{ site_title }}</h1>
+    <span class="count">{{ visible_items|length }} page{{ 's' if visible_items|length != 1 }}</span>
+    <button class="theme" onclick="var d=document.documentElement,n=d.dataset.theme==='dark'?'light':'dark';d.dataset.theme=n;localStorage.setItem('lib-theme',n)">☾</button>
+  </header>
+
+  {% if visible_items %}
+  <div class="grid">
+    {% for i in visible_items %}
+    <a class="card" href="/view/{{ i.path }}">
+      <div class="t">{{ i.title }}</div>
+      {% if i.note %}<div class="n">{{ i.note }}</div>{% endif %}
+      <div class="m"><span>{{ i.modified }}</span><span class="dot"></span><span>{{ i.kb }} KB</span></div>
+    </a>
+    {% endfor %}
+  </div>
+  {% else %}
+  <div class="empty">
+    Nothing to show yet. Drop an <code>.html</code> file into the content folder &mdash; it appears
+    here on its own.
+  </div>
+  {% endif %}
+</div>
+
+<button class="fab" onclick="openEditor()" title="Edit which pages show, and what they're called" aria-label="Edit">
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/>
+  </svg>
+</button>
+
+<div class="sheet" id="sheet" onclick="if(event.target===this)closeEditor()">
+  <div class="panel">
+    <h2>Curate</h2>
+    <div class="sub">Untick to hide a page. Rename it to whatever reads best &mdash; the file on disk
+      is never touched, and new files appear automatically.</div>
+    <div id="rows"></div>
+    <div class="acts">
+      <button class="btn primary" onclick="save()">Save</button>
+      <button class="btn" onclick="closeEditor()">Cancel</button>
+      <span class="saved" id="saved"></span>
+    </div>
+  </div>
+</div>
+
+<script>
+  // Every discovered file, hidden ones included — the editor is the only place they're reachable.
+  var ITEMS = {{ items | tojson }};
+
+  function openEditor(){
+    var host = document.getElementById('rows');
+    host.innerHTML = ITEMS.map(function(i, n){
+      return '<div class="row' + (i.visible ? '' : ' off') + '" data-i="' + n + '">' +
+        '<input type="checkbox" ' + (i.visible ? 'checked' : '') + ' onchange="this.closest(\'.row\').classList.toggle(\'off\', !this.checked)">' +
+        '<div class="fields">' +
+          '<input type="text" class="title" value="' + esc(i.title) + '" placeholder="Display name">' +
+          '<input type="text" class="note note-f" value="' + esc(i.note || '') + '" placeholder="Short description (optional)">' +
+          '<div class="file">' + esc(i.path) + '</div>' +
+        '</div></div>';
+    }).join('') || '<div class="sub">No files found in the content folder.</div>';
+    document.getElementById('sheet').classList.add('open');
+  }
+  function closeEditor(){ document.getElementById('sheet').classList.remove('open'); }
+  function esc(s){ return String(s).replace(/&/g,'&amp;').replace(/"/g,'&quot;').replace(/</g,'&lt;'); }
+
+  function save(){
+    var rows = [].slice.call(document.querySelectorAll('#rows .row'));
+    var items = rows.map(function(r, idx){
+      var i = ITEMS[+r.dataset.i];
+      return {
+        path: i.path,
+        title: r.querySelector('.title').value,
+        note: r.querySelector('.note-f').value,
+        visible: r.querySelector('input[type=checkbox]').checked,
+        order: idx
+      };
+    });
+    fetch('/api/manifest', {method:'POST', headers:{'Content-Type':'application/json'},
+                            body: JSON.stringify({items: items})})
+      .then(function(r){ return r.json(); })
+      .then(function(){ document.getElementById('saved').textContent = 'Saved'; location.reload(); })
+      .catch(function(e){ document.getElementById('saved').textContent = 'Failed: ' + e; });
+  }
+</script>
+</body>
+</html>

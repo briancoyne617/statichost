@@ -1,0 +1,5 @@
+__pycache__/
+*.pyc
+content/
+proxmox-jobs.sqlite3*
+.env
