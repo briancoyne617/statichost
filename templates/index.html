@@ -4,6 +4,10 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>{{ site_title }}</title>
+<link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="/static/favicon-16.png">
+<link rel="apple-touch-icon" sizes="180x180" href="/static/favicon-180.png">
 <script>(function(){var t=localStorage.getItem('lib-theme');if(t)document.documentElement.dataset.theme=t;})();</script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -52,6 +56,17 @@
        cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text-3);
        transition:color .12s,border-color .12s,transform .12s;z-index:50}
   .fab:hover{color:var(--accent);border-color:var(--accent);transform:scale(1.05)}
+  .fab.deploy{right:auto;left:20px}
+  .fab.deploy:hover{color:var(--accent-2);border-color:var(--accent-2)}
+  .fab.deploy:disabled{opacity:.5;cursor:default;transform:none}
+  .deploy-toast{position:fixed;left:20px;bottom:72px;max-width:min(420px,calc(100vw - 40px));
+       background:var(--surface);border:1.5px solid var(--border);border-radius:12px;
+       box-shadow:var(--shadow);padding:.7rem .9rem;font-size:12.5px;line-height:1.5;
+       display:none;z-index:50;white-space:pre-wrap;font-family:ui-monospace,monospace;
+       max-height:40vh;overflow:auto}
+  .deploy-toast.show{display:block}
+  .deploy-toast.ok{color:var(--text)}
+  .deploy-toast.err{color:var(--accent-2);border-color:var(--accent-2)}
 
   /* Editor */
   .sheet{position:fixed;inset:0;background:rgba(0,0,0,.35);display:none;z-index:60;
@@ -111,6 +126,34 @@
     <path d="M12 20h9"/><path d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4Z"/>
   </svg>
 </button>
+
+{% if show_deploy %}
+<button class="fab deploy" id="deployBtn" onclick="deploy()" title="Push + deploy to the VM (local dev only)" aria-label="Deploy">
+  <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M12 19V5"/><path d="M5 12l7-7 7 7"/>
+  </svg>
+</button>
+<div class="deploy-toast" id="deployToast"></div>
+<script>
+  async function deploy(){
+    if(!confirm('Push main and deploy to the VM now?')) return;
+    var btn=document.getElementById('deployBtn'), toast=document.getElementById('deployToast');
+    btn.disabled=true;
+    toast.className='deploy-toast show'; toast.textContent='Deploying…';
+    try{
+      var r=await fetch('/api/deploy',{method:'POST'});
+      var j=await r.json();
+      toast.className='deploy-toast show '+(j.ok?'ok':'err');
+      toast.textContent=(j.ok?'✓ Deployed\n\n':'✗ Failed\n\n')+(j.output||j.error||'');
+    }catch(e){
+      toast.className='deploy-toast show err';
+      toast.textContent='✗ Request failed: '+e;
+    }finally{
+      btn.disabled=false;
+    }
+  }
+</script>
+{% endif %}
 
 <div class="sheet" id="sheet" onclick="if(event.target===this)closeEditor()">
   <div class="panel">

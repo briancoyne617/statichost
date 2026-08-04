@@ -1,0 +1,884 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>Groundwork — Daily PT</title>
+<link rel="icon" type="image/svg+xml" href="/static/favicon.svg">
+<link rel="icon" type="image/png" sizes="32x32" href="/static/favicon-32.png">
+<link rel="icon" type="image/png" sizes="16x16" href="/static/favicon-16.png">
+<link rel="apple-touch-icon" sizes="180x180" href="/static/favicon-180.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=IBM+Plex+Sans:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --paper:#EFECE2; --card:#F9F7EF; --card-press:#F1EEE2;
+  --ink:#262A1F; --ink-dim:#6D705F; --ink-faint:#9B9D8C;
+  --moss:#5A6B3F; --moss-deep:#3D4A2A; --moss-wash:#E3E5D4;
+  --ochre:#A9762B; --ochre-wash:#EFE6D2;
+  --slate:#4C6472; --slate-wash:#DFE5E4;
+  --rust:#9A4E32; --rust-wash:#EFDFD7;
+  --bronze:#8C5A3C; --bronze-wash:#E8DCCF;
+  --silver:#7C8894; --silver-wash:#E3E7EA;
+  --gold:#B8901F; --gold-wash:#F1E4AE;
+  --line:#DAD6C7; --r:16px;
+}
+*,*::before,*::after{margin:0;padding:0;box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html{scroll-behavior:smooth}
+body{font-family:'IBM Plex Sans',system-ui,sans-serif;background:var(--paper);color:var(--ink);font-size:15px;line-height:1.5;min-height:100vh;padding-bottom:56px}
+.wrap{max-width:480px;margin:0 auto;padding:0 16px;position:relative;z-index:1}
+
+header{padding:26px 0 6px}
+.masthead{display:flex;align-items:baseline;justify-content:space-between}
+.masthead h1{font-family:'Fraunces',serif;font-weight:700;font-size:26px;letter-spacing:-0.01em;color:var(--moss-deep)}
+.masthead .mod{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.14em;color:var(--ink-faint)}
+.tracks{display:flex;gap:6px;margin-top:14px;background:var(--card);border:1px solid var(--line);border-radius:12px;padding:4px}
+.tracks button{flex:1;border:none;background:none;border-radius:9px;padding:8px 4px;cursor:pointer;font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.08em;color:var(--ink-dim);transition:background .2s,color .2s}
+.tracks button.on{background:var(--moss-deep);color:#F2F3E6}
+.datebar{display:flex;align-items:center;justify-content:space-between;margin-top:14px}
+.datebar .dt{font-family:'Fraunces',serif;font-size:17px;font-weight:600}
+.nav-btn{border:1px solid var(--line);background:var(--card);border-radius:10px;width:36px;height:36px;font-size:16px;color:var(--ink-dim);cursor:pointer}
+.nav-btn:active{background:var(--card-press)}
+.session-chip{display:inline-block;margin-top:8px;padding:4px 12px;border-radius:100px;font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.08em}
+.session-full{background:var(--moss-wash);color:var(--moss-deep);border:1px solid #C9CEAF}
+.session-light{background:var(--ochre-wash);color:var(--ochre);border:1px solid #DFCB9E}
+.session-rest{background:#E7E4DA;color:var(--ink-dim);border:1px solid var(--line)}
+
+.arch-card{margin-top:16px;background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:18px 18px 12px;text-align:center}
+.arch-card svg{width:100%;max-width:280px;height:auto;display:block;margin:0 auto}
+.arch-track{stroke:var(--line);stroke-width:6;fill:none;stroke-linecap:round}
+.arch-fill{stroke:var(--moss);stroke-width:6;fill:none;stroke-linecap:round;transition:stroke-dashoffset .6s cubic-bezier(.4,0,.2,1)}
+.arch-count{font-family:'Fraunces',serif;font-size:22px;font-weight:600;margin-top:2px}
+.arch-sub{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.12em;color:var(--ink-faint);margin-top:2px}
+
+/* ── month calendar as a literal page backdrop: fixed, pointer-events:none, low-contrast.
+   Cards sit on top of it in the normal flow — it only shows through the gaps/margins, a
+   watermark rather than a widget. Many small months, not one big one: mostly grey now, and
+   it fills in with real color a month at a time as this actually gets used. ── */
+.cal-bg{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden;padding:20px}
+.cal-bg-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));
+  grid-auto-rows:min-content;align-content:space-between;gap:26px 14px;width:100%;height:100%;opacity:.6}
+.cal-bg-tile{display:flex;flex-direction:column;align-items:center;gap:6px}
+.cal-bg-tile-label{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.12em;
+  color:var(--ink-faint);opacity:.8}
+.cal-bg-tile-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
+.cal-bg-dot{width:14px;height:14px;border-radius:50%;background:#DAD6C7}
+.cal-bg-dot.blank{background:transparent}
+.cal-bg-dot.rest{background:transparent;border:1px solid var(--line)}
+.cal-bg-dot.bronze{background:var(--bronze)}
+.cal-bg-dot.silver{background:var(--silver)}
+.cal-bg-dot.gold{background:var(--gold)}
+.cal-bg-dot.today{box-shadow:0 0 0 1.5px var(--paper),0 0 0 3px var(--moss)}
+
+/* ── streak pills: sprinkles, top-right, always visible, deliberately small ── */
+.streak-hud{position:fixed;top:14px;right:14px;z-index:30;display:flex;gap:6px;pointer-events:none}
+.streak-pill{display:flex;align-items:center;gap:5px;background:var(--card);border:1px solid var(--line);
+  border-radius:100px;padding:4px 10px;font-family:'IBM Plex Mono',monospace;font-size:10.5px;
+  color:var(--ink-dim);box-shadow:var(--shadow,0 1px 3px rgba(0,0,0,.06));opacity:.9}
+.streak-pill i{width:7px;height:7px;border-radius:50%;display:inline-block}
+.streak-pill.gold i{background:var(--gold)}
+.streak-pill.bronze i{background:var(--bronze)}
+
+.week{display:flex;justify-content:space-between;margin-top:14px}
+.wday{flex:1;text-align:center;cursor:pointer;padding:6px 0;border-radius:10px}
+.wday:active{background:var(--card-press)}
+.wday .lbl{font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.1em;color:var(--ink-faint)}
+.wday .dot{width:26px;height:26px;border-radius:50%;margin:5px auto 0;border:1.5px solid var(--line);background:var(--card);display:flex;align-items:center;justify-content:center;font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--ink-dim);transition:all .25s}
+.wday.done .dot{background:var(--moss);border-color:var(--moss);color:#fff}
+.wday.partial .dot{border-color:var(--moss);color:var(--moss-deep)}
+.wday.viewing .lbl{color:var(--moss-deep);font-weight:500}
+.wday.viewing .dot{box-shadow:0 0 0 2.5px var(--paper),0 0 0 4px var(--moss)}
+
+.group{margin-top:22px}
+.group-head{display:flex;align-items:baseline;gap:10px;margin-bottom:10px;padding:0 2px}
+.group-head h2{font-family:'Fraunces',serif;font-size:18px;font-weight:600}
+.group-head .tag{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.1em;padding:2px 8px;border-radius:6px}
+.tag-a{background:var(--ochre-wash);color:var(--ochre)}
+.tag-m{background:var(--slate-wash);color:var(--slate)}
+.tag-l{background:var(--moss-wash);color:var(--moss-deep)}
+.tag-e{background:var(--rust-wash);color:var(--rust)}
+.group-head .rule{flex:1;height:1px;background:var(--line)}
+
+/* ── card ── */
+.ex{background:var(--card);border:1px solid var(--line);border-radius:var(--r);margin-bottom:8px;overflow:hidden;transition:border-color .25s,background .15s}
+.ex.done{border-color:#B9C29B;background:#F2F3E6}
+.ex.done .ex-name{color:var(--moss-deep)}
+
+.ex-row{padding:13px 14px 13px 12px;display:flex;gap:12px;align-items:flex-start;cursor:pointer;user-select:none;-webkit-user-select:none}
+.ex-row:active{background:var(--card-press)}
+.ex .tick{flex-shrink:0;width:26px;height:26px;border-radius:9px;margin-top:1px;border:1.5px solid var(--ink-faint);background:transparent;display:flex;align-items:center;justify-content:center;transition:all .2s}
+.ex .tick svg{opacity:0;transform:scale(.6);transition:all .2s;width:13px;height:13px}
+.ex.done .tick{background:var(--moss);border-color:var(--moss)}
+.ex.done .tick svg{opacity:1;transform:scale(1)}
+.ex-body{flex:1;min-width:0}
+.ex-name{font-weight:600;font-size:15px;letter-spacing:-0.01em}
+.ex-dose{font-family:'IBM Plex Mono',monospace;font-size:11px;color:var(--ink-dim);margin-top:2px}
+
+.ex-expand{
+  display:inline-flex;align-items:center;gap:6px;margin-top:8px;
+  font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.08em;
+  color:var(--ink-faint);background:none;border:none;padding:3px 0;cursor:pointer;
+}
+.ex-expand .car{transition:transform .25s;display:inline-block}
+.ex.open .ex-expand .car{transform:rotate(180deg)}
+.ex-expand .has-vid{color:var(--moss)}
+
+.ex-detail{display:none;border-top:1px solid var(--line);background:#F4F1E6}
+.ex.open .ex-detail{display:block}
+.ex.done .ex-detail{background:#EDEFE0}
+.ex-cue{font-size:12.5px;color:var(--ink-dim);line-height:1.5;padding:13px 14px 12px}
+
+.vid-frame{position:relative;width:100%;aspect-ratio:16/9;background:#111;display:block}
+.vid-frame iframe{position:absolute;inset:0;width:100%;height:100%;border:0;display:block}
+.vid-foot{display:flex;justify-content:space-between;align-items:center;gap:8px;padding:8px 12px;flex-wrap:wrap}
+.vid-id{font-family:'IBM Plex Mono',monospace;font-size:9.5px;color:var(--ink-faint);letter-spacing:.04em}
+.vid-acts{display:flex;gap:12px;margin-left:auto}
+.vid-acts a,.vid-acts button{
+  font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:.06em;
+  color:var(--ink-faint);text-decoration:none;background:none;border:none;cursor:pointer;padding:0;
+}
+.vid-acts a:active,.vid-acts button:active{color:var(--moss-deep)}
+.trim{display:flex;gap:8px;align-items:flex-end;padding:0 12px 12px}
+.trim .tf{flex:1}
+.trim label{display:block;font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.1em;color:var(--ink-faint);margin-bottom:4px}
+.trim input{width:100%;border:1px solid var(--line);border-radius:9px;background:var(--paper);padding:8px 9px;font-family:'IBM Plex Mono',monospace;font-size:13px;color:var(--ink);outline:none}
+.trim input:focus{border-color:var(--moss)}
+.trim .clr{
+  font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:.06em;color:var(--ink-faint);
+  background:none;border:1px solid var(--line);border-radius:9px;padding:8px 10px;cursor:pointer;white-space:nowrap;
+}
+.trim-hint{font-family:'IBM Plex Mono',monospace;font-size:9px;letter-spacing:.05em;color:var(--ink-faint);padding:0 12px 12px;line-height:1.6}
+
+.vid-setup{padding:0 12px 13px;display:flex;flex-direction:column;gap:8px}
+.find-btn{
+  display:flex;align-items:center;justify-content:center;gap:6px;
+  background:var(--moss-deep);color:#F2F3E6;border-radius:10px;padding:11px 12px;
+  font-family:'IBM Plex Mono',monospace;font-size:11px;letter-spacing:.08em;text-decoration:none;
+}
+.find-btn:active{opacity:.85}
+.vid-input{width:100%;border:1px solid var(--line);border-radius:10px;background:var(--paper);padding:10px;font-family:'IBM Plex Mono',monospace;font-size:12px;color:var(--ink);outline:none}
+.vid-input:focus{border-color:var(--moss)}
+.vid-hint{font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:.05em;color:var(--ink-faint);line-height:1.6}
+.vid-err{color:var(--rust)}
+
+.rest-card{margin-top:24px;background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:32px 22px;text-align:center}
+.rest-card .big{font-family:'Fraunces',serif;font-size:22px;font-weight:600;color:var(--moss-deep)}
+.rest-card p{color:var(--ink-dim);font-size:14px;margin-top:8px}
+
+.flag{margin-top:16px;background:var(--rust-wash);border:1px solid #DDC0B3;border-radius:var(--r);padding:14px 16px;font-size:12.5px;color:#6E3925;line-height:1.5}
+.flag strong{display:block;font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.12em;margin-bottom:6px;color:var(--rust)}
+
+.tests-toggle{width:100%;margin-top:28px;background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:14px 16px;display:flex;justify-content:space-between;align-items:center;cursor:pointer;font-family:inherit;font-size:15px;font-weight:600;color:var(--ink);text-align:left}
+.tests-toggle .chev{transition:transform .25s;color:var(--ink-faint)}
+.tests-toggle.open .chev{transform:rotate(180deg)}
+.tests-panel{display:none;margin-top:8px}
+.tests-panel.open{display:block}
+.test-card{background:var(--card);border:1px solid var(--line);border-radius:var(--r);padding:16px;margin-bottom:8px}
+.test-card h3{font-family:'Fraunces',serif;font-size:16px;font-weight:600}
+.test-card .how{font-size:12.5px;color:var(--ink-dim);margin:6px 0 12px;line-height:1.45}
+.test-card .target{font-family:'IBM Plex Mono',monospace;font-size:10.5px;color:var(--ochre);letter-spacing:.05em;margin-bottom:12px}
+.test-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.field label{display:block;font-family:'IBM Plex Mono',monospace;font-size:9.5px;letter-spacing:.1em;color:var(--ink-faint);margin-bottom:4px}
+.field input{width:100%;border:1px solid var(--line);border-radius:10px;background:var(--paper);padding:9px 10px;font-family:'IBM Plex Mono',monospace;font-size:15px;color:var(--ink);outline:none}
+.field input:focus{border-color:var(--moss)}
+
+.home-link{display:inline-block;margin-top:22px;font-family:'IBM Plex Mono',monospace;font-size:10.5px;letter-spacing:.1em;color:var(--ink-faint);text-decoration:none}
+.home-link:hover{color:var(--moss-deep)}
+footer{margin-top:34px;text-align:center}
+footer p{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.1em;color:var(--ink-faint);line-height:1.8}
+.save-note{position:fixed;bottom:14px;left:50%;transform:translateX(-50%) translateY(60px);background:var(--moss-deep);color:#F2F3E6;font-size:12px;font-family:'IBM Plex Mono',monospace;padding:8px 18px;border-radius:100px;transition:transform .3s;pointer-events:none;letter-spacing:.05em;z-index:20}
+.save-note.show{transform:translateX(-50%) translateY(0)}
+@media (prefers-reduced-motion: reduce){*{transition:none !important;animation:none !important}}
+</style>
+</head>
+<body>
+
+<div class="cal-bg" id="calBg" aria-hidden="true">
+  <div class="cal-bg-grid" id="calBgGrid"></div>
+</div>
+
+<div class="streak-hud" id="streakHud">
+  <div class="streak-pill gold" title="Consecutive fully-completed days"><i></i><span id="goldStreakNum">0</span></div>
+  <div class="streak-pill bronze" title="Consecutive days with at least something done"><i></i><span id="anyStreakNum">0</span></div>
+</div>
+
+<div class="wrap">
+
+<a class="home-link" href="/">‹ LIBRARY</a>
+
+<header>
+  <div class="masthead">
+    <h1>Groundwork</h1>
+    <span class="mod" id="modLabel">FOOT · ANKLE · ELBOW</span>
+  </div>
+  <div class="tracks" id="tracks">
+    <button data-track="all" class="on">EVERYTHING</button>
+    <button data-track="foot">FEET</button>
+    <button data-track="elbow">ELBOW</button>
+  </div>
+  <div class="datebar">
+    <button class="nav-btn" id="prevDay" aria-label="Previous day">‹</button>
+    <div class="dt" id="dateLabel"></div>
+    <button class="nav-btn" id="nextDay" aria-label="Next day">›</button>
+  </div>
+  <div style="text-align:center"><span class="session-chip" id="sessionChip"></span></div>
+</header>
+
+<div class="arch-card">
+  <svg viewBox="0 0 280 90" aria-hidden="true">
+    <path class="arch-track" d="M 14 74 C 60 74 78 26 140 26 C 202 26 218 74 266 74"/>
+    <path class="arch-fill" id="archFill" d="M 14 74 C 60 74 78 26 140 26 C 202 26 218 74 266 74"/>
+    <circle cx="14" cy="74" r="4" fill="#A9762B"/><circle cx="266" cy="74" r="4" fill="#A9762B"/>
+  </svg>
+  <div class="arch-count" id="archCount">0 of 0</div>
+  <div class="arch-sub">EXERCISES DONE TODAY</div>
+</div>
+
+<div class="week" id="weekStrip"></div>
+<div id="sessionBody"></div>
+
+<div class="flag" id="elbowFlag" style="display:none">
+  <strong>MEDIAL / PINKY-SIDE ELBOW</strong>
+  Prioritise the wrist flexion + pronation work — the flexor-pronator mass is the dynamic backup for the ligament you strained. On the mats, the straight posted arm is your highest-risk position, more than the submissions themselves. Everything here is gentle, frequent, and under your own muscle power. Nobody cranks the elbow toward straight.
+</div>
+
+<button class="tests-toggle" id="testsToggle">
+  <span>Baseline tests <span style="font-family:'IBM Plex Mono',monospace;font-size:10px;color:var(--ink-faint);font-weight:400">· retest wk 8</span></span>
+  <span class="chev">▾</span>
+</button>
+<div class="tests-panel" id="testsPanel">
+  <div class="test-card">
+    <h3>Knee-to-wall</h3>
+    <p class="how">Toe to wall, heel down, knee touches wall. Slide the foot back 1cm at a time to the max you can hold.</p>
+    <p class="target">PISTOL TARGET: 12–15 CM · ASYMMETRY &lt; 1.5 CM</p>
+    <div class="test-grid">
+      <div class="field"><label>BASE L (cm)</label><input type="number" inputmode="decimal" data-store="ktw_bl_l"></div>
+      <div class="field"><label>BASE R (cm)</label><input type="number" inputmode="decimal" data-store="ktw_bl_r"></div>
+      <div class="field"><label>RETEST L</label><input type="number" inputmode="decimal" data-store="ktw_rt_l"></div>
+      <div class="field"><label>RETEST R</label><input type="number" inputmode="decimal" data-store="ktw_rt_r"></div>
+    </div>
+  </div>
+  <div class="test-card">
+    <h3>Single-leg calf raises</h3>
+    <p class="how">Barefoot, fingertips on a wall for balance only. Full height, controlled down, stop when height or form drops.</p>
+    <p class="target">TARGET: 25 CLEAN REPS PER SIDE</p>
+    <div class="test-grid">
+      <div class="field"><label>BASE L</label><input type="number" inputmode="numeric" data-store="cr_bl_l"></div>
+      <div class="field"><label>BASE R</label><input type="number" inputmode="numeric" data-store="cr_bl_r"></div>
+      <div class="field"><label>RETEST L</label><input type="number" inputmode="numeric" data-store="cr_rt_l"></div>
+      <div class="field"><label>RETEST R</label><input type="number" inputmode="numeric" data-store="cr_rt_r"></div>
+    </div>
+  </div>
+  <div class="test-card">
+    <h3>Eyes-closed balance</h3>
+    <p class="how">Barefoot, one leg, eyes closed. Time until the free foot touches down. Best of three.</p>
+    <p class="target">TARGET: 30 SECONDS PER SIDE</p>
+    <div class="test-grid">
+      <div class="field"><label>BASE L (s)</label><input type="number" inputmode="numeric" data-store="bal_bl_l"></div>
+      <div class="field"><label>BASE R (s)</label><input type="number" inputmode="numeric" data-store="bal_bl_r"></div>
+      <div class="field"><label>RETEST L</label><input type="number" inputmode="numeric" data-store="bal_rt_l"></div>
+      <div class="field"><label>RETEST R</label><input type="number" inputmode="numeric" data-store="bal_rt_r"></div>
+    </div>
+  </div>
+  <div class="test-card">
+    <h3>Elbow extension deficit</h3>
+    <p class="how">Both arms flat on a table, palms up, fully relaxed. Photograph from the side. Record degrees short of straight — your good arm is the target, not zero.</p>
+    <p class="target">RECHECK WEEKLY · THE NUMBER THAT MATTERS MOST</p>
+    <div class="test-grid">
+      <div class="field"><label>GOOD ARM (°)</label><input type="number" inputmode="numeric" data-store="elb_good"></div>
+      <div class="field"><label>INJURED (°)</label><input type="number" inputmode="numeric" data-store="elb_bad"></div>
+      <div class="field"><label>WK 4 INJURED</label><input type="number" inputmode="numeric" data-store="elb_bad4"></div>
+      <div class="field"><label>WK 8 INJURED</label><input type="number" inputmode="numeric" data-store="elb_bad8"></div>
+    </div>
+  </div>
+  <div class="test-card">
+    <h3>Grip symmetry</h3>
+    <p class="how">Dynamometer, gripper reps, or a timed dead hang — same method every time.</p>
+    <p class="target">TARGET: INJURED WITHIN 10% OF GOOD SIDE</p>
+    <div class="test-grid">
+      <div class="field"><label>BASE GOOD</label><input type="number" inputmode="decimal" data-store="grip_bl_g"></div>
+      <div class="field"><label>BASE INJURED</label><input type="number" inputmode="decimal" data-store="grip_bl_b"></div>
+      <div class="field"><label>RETEST GOOD</label><input type="number" inputmode="decimal" data-store="grip_rt_g"></div>
+      <div class="field"><label>RETEST INJURED</label><input type="number" inputmode="decimal" data-store="grip_rt_b"></div>
+    </div>
+  </div>
+</div>
+
+<footer>
+  <p>GROUNDWORK · LOAD WITHIN TOLERANCE, KEEP MOVING<br>MILD STRETCH OK · SHARP PAIN = BACK OFF ONE STEP<br>NOT A SUBSTITUTE FOR AN IN-PERSON ASSESSMENT</p>
+</footer>
+
+</div>
+
+<div class="save-note" id="saveNote">saved</div>
+
+<script>
+/* ═════════ PROGRAM ═════════ */
+const GROUPS = [
+  {id:'a',  name:'Activate',        tag:'tag-a', tagText:'FEET'},
+  {id:'m',  name:'Mobilize',        tag:'tag-m', tagText:'ANKLE'},
+  {id:'l',  name:'Load',            tag:'tag-l', tagText:'STRENGTH'},
+  {id:'em', name:'Elbow motion',    tag:'tag-e', tagText:'DAILY · GENTLE'},
+  {id:'es', name:'Elbow stability', tag:'tag-e', tagText:'FOREARM'},
+  {id:'eh', name:'Shoulder',        tag:'tag-e', tagText:'THE OTHER HALF'},
+];
+
+const EXERCISES = [
+  {t:'foot', id:'toe-yoga', g:'a', days:[1,2,3,4,5,6], name:'Toe yoga', dose:'10 / foot · slow',
+   q:'toe yoga exercise big toe lift physical therapy tutorial',
+   cue:'Big toe up, four down — then swap. Use your hands to assist until the pattern clicks. Warm-up for the brain-foot connection, not a strength lift.'},
+  {t:'foot', id:'short-foot', g:'a', days:[1,2,3,4,5,6], name:'Short foot', dose:'5s hold × 10 / foot',
+   q:'short foot exercise arch doming tutorial intrinsic foot muscles',
+   cue:'Pull the ball of the big toe toward the heel without curling toes — the arch domes up. Progress across the weeks: seated → standing → single-leg standing. The progression is the exercise.'},
+  {t:'foot', id:'barefoot-walk', g:'a', days:[2], name:'Barefoot walk', dose:'10–20 min · varied ground',
+   q:'barefoot walking technique foot strength natural gait',
+   cue:'Active recovery. Slow and deliberate — feel the tripod (heel, big-toe ball, little-toe ball) on every step.'},
+  {t:'foot', id:'balance-play', g:'a', days:[6], name:'Balance practice', dose:'3 × max hold / side · eyes closed',
+   q:'single leg balance eyes closed proprioception training progression',
+   cue:'Barefoot single-leg stands, eyes closed. Play with it — head turns, slow reaches. Track your best; it feeds the week-8 retest.'},
+
+  {t:'foot', id:'wall-rocks', g:'m', days:[1,3,4,5], name:'Wall ankle rocks', dose:'2 × 15 pulses / side',
+   q:'knee to wall ankle mobility drill dorsiflexion heel down',
+   cue:'Knee-to-wall position at your current max distance. Heel glued, drive the knee over the toes, gentle pulses at end range. Doubles as a progress check — when it gets easy, move the foot back 1cm.'},
+  {t:'foot', id:'heel-elev-squat', g:'m', days:[1,3,4,5], name:'Heel-elevated squat pry', dose:'2 × 45s hold',
+   q:'heel elevated deep squat hold ankle mobility pry',
+   cue:'Heels on a board, sink to full depth, shift side to side and pry the knees forward. Loaded end-range time is what actually changes range — hold something heavy at your chest to deepen it.'},
+  {t:'foot', id:'band-distract', g:'m', days:[1,3,4,5], name:'Banded ankle glide (optional)', dose:'2 × 10 / side',
+   q:'banded ankle distraction mobilization dorsiflexion talus glide',
+   cue:'Heavy band low, looped at the ankle crease pulling back, lunge the knee forward. Adjunct only — skip if short on time, the loaded work does more.'},
+
+  {t:'foot', id:'soleus-raise', g:'l', days:[1,3,5], name:'Bent-knee calf raises', dose:'3 × 12 / side · 3s down',
+   q:'bent knee calf raise soleus strengthening off a step tutorial',
+   cue:'Knee bent ~30° throughout, off a step for full range. Targets the soleus — the actual limiter in knee-over-toe dorsiflexion. Deep stretch at the bottom, slow eccentric, add load as it gets easy.'},
+  {t:'foot', id:'tib-raise', g:'l', days:[1,3,5], name:'Tibialis raises', dose:'3 × 15',
+   q:'tibialis anterior raise against wall exercise tutorial',
+   cue:'Back to a wall, heels a foot out, lift both forefeet as high as possible, lower slow. You have to actively pull into dorsiflexion at the bottom of a pistol — this is that muscle.'},
+  {t:'foot', id:'step-down', g:'l', days:[1,3,5], name:'Slow step-downs', dose:'3 × 8 / leg · 4s down',
+   q:'eccentric single leg step down slow control technique',
+   cue:'On a box or stair, lower the free heel to a soft tap over 4 seconds, stand back up on the working leg only. The eccentric is the point.'},
+  {t:'foot', id:'cossack', g:'l', days:[1,3,5], name:'Cossack squats', dose:'3 × 8 / side · 2s bottom',
+   q:'cossack squat tutorial technique beginner progression',
+   cue:'Wide stance, squat to one side with that foot flat, other leg straight, toe up. Hold a light counterweight out front if you tip backward.'},
+  {t:'foot', id:'assisted-pistol', g:'l', days:[1,3,5], name:'Assisted pistols', dose:'3 × 5 / leg · full depth',
+   q:'assisted pistol squat progression counterweight beginner',
+   cue:'Hold a doorframe or strap and do the FULL pistol — all the way down and up — using the arms as little as possible. Or hold a 5–10 lb weight straight out as a counterweight. Grooving the real movement from day one is what the original program missed.'},
+
+  {t:'elbow', id:'elb-arom', g:'em', days:[0,1,2,3,4,5,6], name:'Active bend & straighten', dose:'15 reps · 3× through the day',
+   q:'active elbow range of motion exercise flexion extension rehab',
+   cue:'Under your own muscle power only. Bend fully, then straighten as far as it comfortably goes and hold 2 seconds at the end. High frequency, low intensity — the single most important thing on the list. Little and often beats one hard session.'},
+  {t:'elbow', id:'elb-rot', g:'em', days:[0,1,2,3,4,5,6], name:'Palm up / palm down', dose:'15 each way · 2× daily',
+   q:'forearm pronation supination exercise elbow rehab range of motion',
+   cue:'Elbow pinned to your ribs at 90°, rotate the palm fully up then fully down. Forearm rotation is half of elbow function and takes direct load in an americana. Most people skip it and stay stiff.'},
+  {t:'elbow', id:'elb-hang', g:'em', days:[0,1,2,3,4,5,6], name:'Gravity extension rest', dose:'3 × 90s · relaxed',
+   q:'low load prolonged stretch elbow extension gravity assisted rehab',
+   cue:'Forearm off the edge of a table, palm up, small towel under the upper arm. Let gravity do it and completely relax. No pressing with the other hand — low load, long duration.'},
+
+  {t:'elbow', id:'elb-grip', g:'es', days:[0,1,2,3,4,5,6], name:'Grip squeezes', dose:'5 × 10s hold',
+   q:'grip strengthening isometric squeeze hand therapy exercise',
+   cue:'Rolled towel, ball, or gripper. Squeeze hard, breathe, release. Grip work loads and dynamically stabilizes the elbow and is the fastest-responding marker of recovery.'},
+  {t:'elbow', id:'elb-wristflex', g:'es', days:[1,2,3,4,5,6], name:'Wrist flexion + pronation eccentrics', dose:'3 × 15 · 3s down · PRIORITY',
+   q:'wrist flexor eccentric exercise golfers elbow pronation hammer',
+   cue:'Forearm on your thigh, palm up, light weight. Lift with help from the other hand, lower over 3 seconds alone. Then a set of slow pronation with a hammer held short. This is your priority drill — the flexor-pronator mass is the dynamic stabilizer for the medial, pinky-side elbow you actually strained.'},
+  {t:'elbow', id:'elb-wristext', g:'es', days:[1,3,5], name:'Wrist extension eccentrics', dose:'3 × 15 · 3s down',
+   q:'wrist extensor eccentric exercise tennis elbow slow lowering',
+   cue:'Same setup, palm down. Maintenance work for the lateral side — keep it in, but weight the flexion side heavier given where your pain sits.'},
+  {t:'elbow', id:'elb-iso', g:'es', days:[1,3,5], name:'Elbow isometric holds', dose:'4 × 30s · 70% effort',
+   q:'elbow isometric exercise flexion extension rehabilitation hold',
+   cue:'Press into an immovable object both ways — try to bend, then try to straighten — at an angle that stays comfortable. Builds capacity without moving through irritable range. Stop at sharp pain, not at discomfort.'},
+
+  {t:'elbow', id:'elb-er', g:'eh', days:[1,3,5], name:'Shoulder external rotation', dose:'3 × 15 · light band',
+   q:'shoulder external rotation band exercise elbow at side technique',
+   cue:'Elbow at your side, bent 90°, rotate the forearm outward against a band. The americana attacks shoulder internal rotation — building the external rotators is what defends the position next time.'},
+  {t:'elbow', id:'elb-scap', g:'eh', days:[1,3,5], name:'Band pull-aparts', dose:'3 × 15',
+   q:'band pull apart proper form scapular retraction tutorial',
+   cue:'Squeeze the shoulder blades back and down, slow return. Scapular control takes load off both the shoulder and the elbow when someone is cranking on your arm.'},
+  {t:'elbow', id:'elb-ir-rom', g:'eh', days:[1,3,5], name:'Shoulder rotation range', dose:'10 slow reps each way',
+   q:'shoulder internal external rotation range of motion exercise 90 90',
+   cue:'Arm out to the side, elbow bent, rotate the hand toward your head then toward your hip, only as far as is comfortable. Restoring the americana range under your own control is how you stop flinching in it.'},
+];
+
+const DAY_TYPE = {
+  0:{label:'REST · ELBOW ONLY', cls:'session-rest'},
+  1:{label:'FULL SESSION',      cls:'session-full'},
+  2:{label:'RECOVERY WALK',     cls:'session-light'},
+  3:{label:'FULL SESSION',      cls:'session-full'},
+  4:{label:'MOBILITY ONLY',     cls:'session-light'},
+  5:{label:'FULL SESSION',      cls:'session-full'},
+  6:{label:'BALANCE PLAY',      cls:'session-light'},
+};
+
+/* ═════════ STORAGE ═════════
+   Backed by statichost's /api/storage/{content-path} — a flat key/value store per hosted page
+   (see app.py). CONTENT_PATH is this page's own path, read off the /view/ URL statichost serves
+   it at; opened any other way (straight off disk, etc.) there's nothing to namespace against, so
+   it quietly falls back to the in-memory `mem` object, same as before. */
+const mem = {};
+const CONTENT_PATH = (location.pathname.match(/^\/view\/(.+)$/) || [])[1] || null;
+async function sGet(k){
+  try{
+    if(CONTENT_PATH){
+      const r = await fetch(`/api/storage/${encodeURI(CONTENT_PATH)}?key=${encodeURIComponent(k)}`);
+      if(r.ok){ const j = await r.json(); return j.value!=null ? JSON.parse(j.value) : null; }
+    }
+  }catch(e){ console.error('storage get failed',e); }
+  return mem[k]??null;
+}
+async function sSet(k,v){
+  mem[k]=v;
+  try{
+    if(CONTENT_PATH){
+      await fetch(`/api/storage/${encodeURI(CONTENT_PATH)}`,{
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({key:k, value:JSON.stringify(v)})
+      });
+    }
+  }catch(e){ console.error('storage set failed',e); }
+}
+/* One round trip for many keys at once, via /api/storage-bulk — the month-wall background can
+   need hundreds of days' worth of logs, and one HTTP request per day made the first render take
+   longer than the page stayed open for. */
+async function sGetMany(keys){
+  const out={};
+  if(CONTENT_PATH && keys.length){
+    try{
+      const r=await fetch(`/api/storage-bulk/${encodeURI(CONTENT_PATH)}`,{
+        method:'POST', headers:{'Content-Type':'application/json'},
+        body: JSON.stringify({keys})
+      });
+      if(r.ok){
+        const j=await r.json();
+        for(const k of keys) out[k]= j.values[k]!=null ? JSON.parse(j.values[k]) : null;
+        return out;
+      }
+    }catch(e){ console.error('storage bulk get failed',e); }
+  }
+  for(const k of keys) out[k]=mem[k]??null;
+  return out;
+}
+
+/* ═════════ STATE ═════════ */
+let viewDate=new Date(), track='all', dayLog={}, videos={}, weekCache={}, openCards=new Set();
+/* Raw per-day logs, cached for the session. `dayLog` (today, or whatever day you're viewing) is
+   stored by reference, so mutating it in toggleExercise keeps the cache correct for free. */
+const dayLogCache={};
+async function warmLogCache(dates){
+  const need=[];
+  for(const d of dates){
+    const key=fmtKey(d);
+    if(key===fmtKey(viewDate)) continue;
+    if(dayLogCache[key]!==undefined) continue;
+    need.push(key);
+  }
+  if(!need.length) return;
+  const values=await sGetMany(need.map(k=>'groundwork-log-'+k));
+  for(const key of need) dayLogCache[key]=values['groundwork-log-'+key]||{};
+}
+async function logFor(d){
+  const key=fmtKey(d);
+  if(key===fmtKey(viewDate)) return dayLog;
+  if(dayLogCache[key]!==undefined) return dayLogCache[key];
+  const log=(await sGet(logKey(d)))||{};   // fallback for anything a caller didn't pre-warm
+  dayLogCache[key]=log;
+  return log;
+}
+const fmtKey=d=>d.getFullYear()+'-'+String(d.getMonth()+1).padStart(2,'0')+'-'+String(d.getDate()).padStart(2,'0');
+const logKey=d=>'groundwork-log-'+fmtKey(d);
+const isToday=d=>fmtKey(d)===fmtKey(new Date());
+const exercisesFor=d=>EXERCISES.filter(e=>e.days.includes(d.getDay())&&(track==='all'||e.t===track));
+const ARCH_LEN=340;
+const esc=s=>String(s).replace(/[&<>"']/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+
+/* ── video id + time parsing ── */
+function parseVideoId(raw){
+  if(!raw) return null;
+  const s=raw.trim();
+  if(/^[A-Za-z0-9_-]{11}$/.test(s)) return s;
+  const pats=[/[?&]v=([A-Za-z0-9_-]{11})/,/youtu\.be\/([A-Za-z0-9_-]{11})/,/\/shorts\/([A-Za-z0-9_-]{11})/,/\/embed\/([A-Za-z0-9_-]{11})/,/\/live\/([A-Za-z0-9_-]{11})/];
+  for(const p of pats){ const m=s.match(p); if(m) return m[1]; }
+  return null;
+}
+/* accepts 90 · 90s · 1:30 · 1:02:30 · 1m30s */
+function parseTime(v){
+  if(v==null) return null;
+  const s=String(v).trim();
+  if(!s) return null;
+  if(/^\d+$/.test(s)) return parseInt(s,10);
+  let m=s.match(/^(?:(\d+):)?(\d{1,3}):(\d{2})$/);
+  if(m) return (parseInt(m[1]||0,10)*3600)+(parseInt(m[2],10)*60)+parseInt(m[3],10);
+  m=s.match(/^(?:(\d+)h)?(?:(\d+)m)?(?:(\d+)s)?$/i);
+  if(m&&(m[1]||m[2]||m[3])) return (+(m[1]||0))*3600+(+(m[2]||0))*60+(+(m[3]||0));
+  return null;
+}
+function fmtTime(sec){
+  if(sec==null||isNaN(sec)) return '';
+  const h=Math.floor(sec/3600),m=Math.floor((sec%3600)/60),s=Math.floor(sec%60);
+  return h ? `${h}:${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`
+           : `${m}:${String(s).padStart(2,'0')}`;
+}
+/* grab &t= / #t= off a pasted share link */
+function parseUrlStart(raw){
+  const m=String(raw).match(/[?&#]t=([^&#]+)/);
+  return m ? parseTime(decodeURIComponent(m[1])) : null;
+}
+/* normalise stored shape: legacy plain-string ids still work */
+function getVid(id){
+  const v=videos[id];
+  if(!v) return null;
+  return (typeof v==='string') ? {v:v,s:null,e:null} : v;
+}
+function embedSrc(rec){
+  let u=`https://www.youtube-nocookie.com/embed/${rec.v}?rel=0&modestbranding=1&playsinline=1`;
+  if(rec.s!=null) u+=`&start=${rec.s}`;
+  if(rec.e!=null) u+=`&end=${rec.e}`;
+  return u;
+}
+function watchUrl(rec){
+  return `https://www.youtube.com/watch?v=${rec.v}`+(rec.s!=null?`&t=${rec.s}s`:'');
+}
+
+function detailHTML(e){
+  const rec=getVid(e.id);
+  const search='https://www.youtube.com/results?search_query='+encodeURIComponent(e.q);
+  let media;
+  if(rec){
+    media=`<div class="vid-frame">
+        <iframe src="${esc(embedSrc(rec))}" title="${esc(e.name)} demo" loading="lazy" allowfullscreen
+          allow="accelerometer; encrypted-media; gyroscope; picture-in-picture"></iframe>
+      </div>
+      <div class="vid-foot">
+        <span class="vid-id">ID: ${esc(rec.v)}</span>
+        <span class="vid-acts">
+          <a href="${esc(watchUrl(rec))}" target="_blank" rel="noopener">OPEN ↗</a>
+          <button class="vid-swap" data-id="${e.id}">CHANGE</button>
+        </span>
+      </div>
+      <div class="trim">
+        <div class="tf"><label>START</label>
+          <input class="trim-in" data-id="${e.id}" data-k="s" inputmode="text" placeholder="0:00" value="${esc(fmtTime(rec.s))}"></div>
+        <div class="tf"><label>END</label>
+          <input class="trim-in" data-id="${e.id}" data-k="e" inputmode="text" placeholder="—" value="${esc(fmtTime(rec.e))}"></div>
+        <button class="clr" data-id="${e.id}">CLEAR</button>
+      </div>
+      <div class="trim-hint">Accepts 1:30, 90, or 1m30s. Leave blank for full video.</div>`;
+  } else {
+    media=`<div class="vid-setup">
+        <a class="find-btn" href="${esc(search)}" target="_blank" rel="noopener">FIND A DEMO ↗</a>
+        <input class="vid-input" data-id="${e.id}" inputmode="url" autocomplete="off" placeholder="paste the YouTube link here">
+        <div class="vid-hint">Paste once — it stays on this card. A link with &amp;t= keeps its start time.</div>
+      </div>`;
+  }
+  return `<div class="ex-cue">${e.cue}</div>${media}`;
+}
+
+function renderHeader(){
+  document.getElementById('dateLabel').textContent = isToday(viewDate)
+    ? 'Today · '+viewDate.toLocaleDateString('en-US',{month:'short',day:'numeric'})
+    : viewDate.toLocaleDateString('en-US',{weekday:'long',month:'short',day:'numeric'});
+  const t=DAY_TYPE[viewDate.getDay()], chip=document.getElementById('sessionChip'), list=exercisesFor(viewDate);
+  chip.textContent = list.length ? t.label : 'REST DAY';
+  chip.className='session-chip '+(list.length?t.cls:'session-rest');
+  document.getElementById('modLabel').textContent = track==='foot'?'FOOT · ANKLE':track==='elbow'?'ELBOW · SHOULDER':'FOOT · ANKLE · ELBOW';
+  document.getElementById('elbowFlag').style.display=(track==='elbow'||track==='all')?'block':'none';
+}
+
+function renderArch(){
+  const list=exercisesFor(viewDate), done=list.filter(e=>dayLog[e.id]).length, total=list.length;
+  const pct=total?done/total:0, fill=document.getElementById('archFill');
+  fill.style.strokeDasharray=ARCH_LEN; fill.style.strokeDashoffset=ARCH_LEN*(1-pct);
+  document.getElementById('archCount').textContent=total?`${done} of ${total}`:'Rest';
+  document.querySelector('.arch-sub').textContent=total?(pct===1?'SESSION COMPLETE':'EXERCISES DONE'):'RECOVERY IS TRAINING';
+}
+
+function renderSession(){
+  const body=document.getElementById('sessionBody'), list=exercisesFor(viewDate);
+  if(!list.length){
+    body.innerHTML=`<div class="rest-card"><div class="big">Full rest</div>
+      <p>Nothing scheduled on this track. Adaptation happens today — come back tomorrow.</p></div>`;
+    return;
+  }
+  let html='';
+  for(const grp of GROUPS){
+    const exs=list.filter(e=>e.g===grp.id);
+    if(!exs.length) continue;
+    html+=`<div class="group"><div class="group-head"><h2>${grp.name}</h2>
+      <span class="tag ${grp.tag}">${grp.tagText}</span><div class="rule"></div></div>`;
+    for(const e of exs){
+      const isOpen=openCards.has(e.id);
+      const hasVid=!!getVid(e.id);
+      html+=`<div class="ex ${dayLog[e.id]?'done':''} ${isOpen?'open':''}" data-id="${e.id}">
+        <div class="ex-row" role="button" tabindex="0" aria-pressed="${!!dayLog[e.id]}">
+          <div class="tick"><svg viewBox="0 0 13 13" fill="none"><path d="M2.5 7L5.2 9.7 10.5 3.5" stroke="#F2F3E6" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+          <div class="ex-body">
+            <div class="ex-name">${esc(e.name)}</div>
+            <div class="ex-dose">${esc(e.dose)}</div>
+            <button class="ex-expand" data-id="${e.id}">
+              <span class="car">▾</span> INSTRUCTIONS${hasVid?' <span class="has-vid">+ DEMO</span>':''}
+            </button>
+          </div>
+        </div>
+        <div class="ex-detail">${detailHTML(e)}</div>
+      </div>`;
+    }
+    html+=`</div>`;
+  }
+  body.innerHTML=html;
+  wireCards(body);
+}
+
+function wireCards(body){
+  body.querySelectorAll('.ex').forEach(card=>{
+    const id=card.dataset.id, row=card.querySelector('.ex-row');
+    row.addEventListener('click',ev=>{
+      if(ev.target.closest('.ex-expand')) return;   // handled below
+      toggleExercise(id,card,row);
+    });
+    row.addEventListener('keydown',ev=>{
+      if(ev.target.closest('.ex-expand')) return;
+      if(ev.key==='Enter'||ev.key===' '){ ev.preventDefault(); toggleExercise(id,card,row); }
+    });
+  });
+  body.querySelectorAll('.ex-expand').forEach(btn=>{
+    btn.addEventListener('click',ev=>{
+      ev.stopPropagation();
+      const id=btn.dataset.id, card=btn.closest('.ex');
+      if(openCards.has(id)) openCards.delete(id); else openCards.add(id);
+      card.classList.toggle('open',openCards.has(id));
+    });
+  });
+  body.querySelectorAll('.vid-input').forEach(inp=>{
+    const commit=async()=>{
+      const val=inp.value.trim();
+      if(!val) return;
+      const vid=parseVideoId(val);
+      const hint=inp.parentElement.querySelector('.vid-hint');
+      if(!vid){
+        hint.textContent="Couldn't read a video ID from that — paste the full watch or youtu.be link.";
+        hint.classList.add('vid-err');
+        return;
+      }
+      videos[inp.dataset.id]={v:vid, s:parseUrlStart(val), e:null};
+      await sSet('groundwork-videos',videos);
+      openCards.add(inp.dataset.id);
+      flashSaved(); renderSession();
+    };
+    inp.addEventListener('change',commit);
+    inp.addEventListener('blur',commit);
+    inp.addEventListener('keydown',ev=>{ if(ev.key==='Enter'){ ev.preventDefault(); inp.blur(); } });
+  });
+  body.querySelectorAll('.trim-in').forEach(inp=>{
+    const commit=async()=>{
+      const id=inp.dataset.id, k=inp.dataset.k, rec=getVid(id);
+      if(!rec) return;
+      const raw=inp.value.trim();
+      const val=raw===''?null:parseTime(raw);
+      if(raw!==''&&val==null){ inp.value=fmtTime(rec[k]); return; }
+      rec[k]=val;
+      if(rec.e!=null&&rec.s!=null&&rec.e<=rec.s) rec.e=null;   // ignore an end before the start
+      videos[id]=rec;
+      await sSet('groundwork-videos',videos);
+      flashSaved(); renderSession();
+    };
+    inp.addEventListener('change',commit);
+    inp.addEventListener('keydown',ev=>{ if(ev.key==='Enter'){ ev.preventDefault(); inp.blur(); } });
+  });
+  body.querySelectorAll('.clr').forEach(btn=>{
+    btn.addEventListener('click',async ev=>{
+      ev.stopPropagation();
+      const rec=getVid(btn.dataset.id); if(!rec) return;
+      rec.s=null; rec.e=null; videos[btn.dataset.id]=rec;
+      await sSet('groundwork-videos',videos); renderSession();
+    });
+  });
+  body.querySelectorAll('.vid-swap').forEach(btn=>{
+    btn.addEventListener('click',async ev=>{
+      ev.stopPropagation();
+      delete videos[btn.dataset.id];
+      await sSet('groundwork-videos',videos); renderSession();
+    });
+  });
+}
+
+async function toggleExercise(id,card,row){
+  dayLog[id]=!dayLog[id];
+  if(!dayLog[id]) delete dayLog[id];
+  card.classList.toggle('done',!!dayLog[id]);
+  row.setAttribute('aria-pressed',!!dayLog[id]);
+  renderArch();
+  await sSet(logKey(viewDate),dayLog);
+  renderWeek(); renderCalendar(); renderStreak(); flashSaved();
+}
+
+function summarize(d,log){
+  const all=EXERCISES.filter(e=>e.days.includes(d.getDay())&&(track==='all'||e.t===track));
+  const ids=new Set(all.map(e=>e.id));
+  return {done:Object.keys(log||{}).filter(k=>ids.has(k)).length, total:all.length, _raw:log};
+}
+
+async function renderWeek(){
+  const strip=document.getElementById('weekStrip'), today=new Date(), days=[];
+  for(let i=6;i>=0;i--){ const d=new Date(today); d.setDate(today.getDate()-i); days.push(d); }
+  let html='';
+  for(const d of days){
+    const k=fmtKey(d);
+    const log=(k===fmtKey(viewDate))?dayLog
+      :((weekCache[k]&&weekCache[k]._raw)?weekCache[k]._raw:(await sGet('groundwork-log-'+k))||{});
+    const s=summarize(d,log); weekCache[k]=s;
+    let cls='';
+    if(s.total===0) cls=''; else if(s.done>=s.total) cls='done'; else if(s.done>0) cls='partial';
+    if(k===fmtKey(viewDate)) cls+=' viewing';
+    const inner=s.total===0?'·':(s.done>=s.total?'✓':(s.done>0?s.done:d.getDate()));
+    html+=`<div class="wday ${cls}" data-date="${d.toISOString()}">
+      <div class="lbl">${d.toLocaleDateString('en-US',{weekday:'narrow'})}</div><div class="dot">${inner}</div></div>`;
+  }
+  strip.innerHTML=html;
+  strip.querySelectorAll('.wday').forEach(el=>el.addEventListener('click',()=>{ viewDate=new Date(el.dataset.date); loadDay(); }));
+}
+
+/* ── streaks: consecutive scheduled days meeting a bar, walking back from today.
+   Rest days (nothing scheduled) are skipped, not counted or broken. Today itself never
+   breaks a streak while still in progress — only a *past* day under the bar ends it.
+   Two bars, two sprinkles: "any effort" (bronze-or-better) and "fully completed" (gold). ── */
+async function computeStreakByBar(meetsBar){
+  const today=new Date(); today.setHours(0,0,0,0);
+  const todayKey=fmtKey(today);
+  let streak=0, d=new Date(today);
+  for(let i=0;i<400;i++){
+    const key=fmtKey(d);
+    const s=summarize(d,await logFor(d));
+    if(s.total>0){
+      if(meetsBar(s)) streak++;
+      else if(key!==todayKey) break;
+    }
+    d.setDate(d.getDate()-1);
+  }
+  return streak;
+}
+
+/* Both renderStreak and renderCalendar scan hundreds of days across many awaits, and both get
+   fired again on every single checkbox toggle (fire-and-forget, for responsiveness — see
+   toggleExercise). Two toggles in quick succession means two overlapping calls to each, and
+   nothing guarantees the one that started FIRST also FINISHES first: whichever resolves last
+   wins the DOM write, which can silently stomp fresher state with a stale render. A render
+   token fixes it — each call checks it's still the latest before writing anything. */
+let streakRenderToken=0;
+async function renderStreak(){
+  const myToken=++streakRenderToken;
+  const today=new Date(); today.setHours(0,0,0,0);
+  await warmLogCache(Array.from({length:400},(_,i)=>{ const d=new Date(today); d.setDate(d.getDate()-i); return d; }));
+  const [gold,any]=await Promise.all([
+    computeStreakByBar(s=>s.done>=s.total),
+    computeStreakByBar(s=>s.done>0),
+  ]);
+  if(myToken!==streakRenderToken) return;
+  document.getElementById('goldStreakNum').textContent=gold;
+  document.getElementById('anyStreakNum').textContent=any;
+}
+
+/* ── the background field: a wall of small month-calendars, purely backward-looking — the
+   current month (up to today, nothing beyond) and then as many previous months as it takes to
+   fill the screen. Most of it is grey now; it fills in with real color a month at a time as
+   this actually gets used. Tile count isn't fixed: estimated from the viewport so it genuinely
+   covers a big desktop monitor and doesn't overflow a small one (numbers below match the CSS
+   tile/dot/gap sizes above — keep them in sync if those change). Only the most recent
+   CAL_BG_LABEL_MONTHS get a label; older ones are bare dots, no month/year text at all.
+   Purely decorative (pointer-events:none on the container): no click handling. ── */
+const CAL_BG_MIN_MONTHS=12, CAL_BG_MAX_MONTHS=140, CAL_BG_LABEL_MONTHS=12;
+function estimateCalBgMonthCount(){
+  const dotPitch=14+4;                        // .cal-bg-dot width + .cal-bg-tile-grid gap
+  const tileW=7*dotPitch-4;                    // 7 columns, no trailing gap
+  const tileH=6*dotPitch-4 + 10+6;             // up to 6 rows + label height + label gap
+  const cellW=tileW+14, cellH=tileH+26;        // + .cal-bg-grid gaps
+  const cols=Math.max(1,Math.floor((window.innerWidth-40)/cellW));
+  const rows=Math.max(1,Math.floor((window.innerHeight-40)/cellH));
+  return Math.min(CAL_BG_MAX_MONTHS,Math.max(CAL_BG_MIN_MONTHS,cols*rows));
+}
+
+let calRenderToken=0;
+async function renderCalendar(){
+  const myToken=++calRenderToken;
+  const now=new Date(), todayKey=fmtKey(now), curKey=now.getFullYear()*12+now.getMonth();
+  const total=estimateCalBgMonthCount();
+  // oldest → newest, current month last, nothing forward of it.
+  const months=Array.from({length:total},(_,i)=>new Date(now.getFullYear(),now.getMonth()-(total-1-i),1));
+
+  const allDays=[];
+  for(const first of months){
+    const year=first.getFullYear(), month=first.getMonth();
+    const monthsAgo=curKey-(year*12+month);
+    const numDays=monthsAgo===0 ? now.getDate() : new Date(year,month+1,0).getDate();
+    for(let day=1;day<=numDays;day++) allDays.push(new Date(year,month,day));
+  }
+  await warmLogCache(allDays);
+  if(myToken!==calRenderToken) return;   // a newer render took over while the bulk fetch was in flight
+
+  const tiles=await Promise.all(months.map(async first=>{
+    const year=first.getFullYear(), month=first.getMonth();
+    const monthsAgo=curKey-(year*12+month);
+    const numDays=monthsAgo===0 ? now.getDate() : new Date(year,month+1,0).getDate();
+    let dots='';
+    for(let i=0;i<first.getDay();i++) dots+='<div class="cal-bg-dot blank"></div>';
+    for(let day=1;day<=numDays;day++){
+      const d=new Date(year,month,day), key=fmtKey(d);
+      const s=summarize(d,await logFor(d));
+      let tier='none';
+      if(s.total===0) tier='rest';
+      else{ const pct=s.done/s.total; tier=pct>=1?'gold':pct>=0.5?'silver':pct>0?'bronze':'none'; }
+      const cls=['cal-bg-dot',tier];
+      if(key===todayKey) cls.push('today');
+      dots+=`<div class="${cls.join(' ')}"></div>`;
+    }
+    const label=monthsAgo<CAL_BG_LABEL_MONTHS
+      ? `<div class="cal-bg-tile-label">${esc(first.toLocaleDateString('en-US',{month:'short'}).toUpperCase())}</div>`
+      : '';
+    return `<div class="cal-bg-tile">${label}<div class="cal-bg-tile-grid">${dots}</div></div>`;
+  }));
+
+  if(myToken!==calRenderToken) return;
+  document.getElementById('calBgGrid').innerHTML=tiles.join('');
+}
+
+async function loadDay(){
+  dayLog=(await sGet(logKey(viewDate)))||{};
+  dayLogCache[fmtKey(viewDate)]=dayLog;
+  renderHeader(); renderSession(); renderArch(); renderWeek();
+  renderCalendar(); renderStreak();
+}
+
+document.getElementById('prevDay').addEventListener('click',()=>{ viewDate.setDate(viewDate.getDate()-1); loadDay(); });
+document.getElementById('nextDay').addEventListener('click',()=>{ viewDate.setDate(viewDate.getDate()+1); loadDay(); });
+document.getElementById('tracks').addEventListener('click',e=>{
+  const b=e.target.closest('button'); if(!b) return;
+  track=b.dataset.track;
+  document.querySelectorAll('#tracks button').forEach(x=>x.classList.toggle('on',x===b));
+  weekCache={}; loadDay();
+});
+
+const tt=document.getElementById('testsToggle'), tp=document.getElementById('testsPanel');
+tt.addEventListener('click',()=>{ tt.classList.toggle('open'); tp.classList.toggle('open'); });
+
+async function initTests(){
+  const saved=(await sGet('groundwork-baselines'))||{};
+  document.querySelectorAll('[data-store]').forEach(inp=>{
+    const k=inp.dataset.store;
+    if(saved[k]!=null) inp.value=saved[k];
+    inp.addEventListener('change',async()=>{ saved[k]=inp.value; await sSet('groundwork-baselines',saved); flashSaved(); });
+  });
+}
+
+let saveTimer;
+function flashSaved(){
+  const n=document.getElementById('saveNote');
+  n.classList.add('show'); clearTimeout(saveTimer);
+  saveTimer=setTimeout(()=>n.classList.remove('show'),1200);
+}
+
+(async function boot(){
+  videos=(await sGet('groundwork-videos'))||{};
+  await loadDay();
+  initTests();
+})();
+</script>
+
+</body>
+</html>

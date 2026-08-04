@@ -18,7 +18,7 @@
 set -euo pipefail
 
 VM="${1:-${STATICHOST_VM:-CHANGE-ME}}"
-APP="/opt/statichost"
+APP="/home/bc/statichost"
 
 if [[ "$VM" == *CHANGE-ME* ]]; then
   echo "Set the VM host: scripts/deploy.sh user@<vm-ip>   (or export STATICHOST_VM)" >&2

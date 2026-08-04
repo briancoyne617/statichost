@@ -8,16 +8,24 @@ one place instead of scattered files opened locally.
 
 - `app.py` — single-file FastAPI app. No database.
 - `CONTENT_DIR` (env, default `./content`; on the deploy VM this is `/srv/www`, volume-mounted per
-  `docker-compose.yml`) is where every hosted `.html` file lives. **The filesystem is the source of
-  truth for what exists** — drop a file in and it appears on the homepage automatically.
-- `_manifest.json`, written inside `CONTENT_DIR`, is the *only* server-side state that exists today.
-  It decorates the filesystem listing — per-file title override, note, `visible`, `order` — and
-  never touches the hosted HTML itself. Written via `POST /api/manifest` from the pencil-icon editor
-  on the homepage (`templates/index.html`).
+  `docker-compose.yml`) is where every hosted `.html` file is actually *served from*. **The
+  filesystem is the source of truth for what exists** — drop a file in and it appears on the
+  homepage automatically.
+- `sites/` (in this repo, git-tracked) is where you actually **edit** hosted pages — `_sync_sites()`
+  in `app.py` mirrors it into `CONTENT_DIR` on every app startup (local `--reload`, and every VM
+  `docker compose up -d --build` after a deploy). This is what makes "edit a sub-site locally,
+  `git push`, it's live" true without a separate manual copy step — see the dedicated section below.
+  `sites/` only ever supplies page *files*; it never touches `_manifest.json`/`_storage.json`.
+- `_manifest.json`, written inside `CONTENT_DIR`, decorates the filesystem listing — per-file title
+  override, note, `visible`, `order` — and never touches the hosted HTML itself. Written via
+  `POST /api/manifest` from the pencil-icon editor on the homepage (`templates/index.html`).
 - Content is served read-only at `/view/{path}` (path-traversal-checked) and `/raw/*` (static mount,
   for assets a hosted page references relatively).
-- Local dev has no `content/` dir by default — create one and point `CONTENT_DIR` at it, or set it to
-  wherever you're testing from.
+- `/static/*` is a **separate** mount for app-level chrome (the favicon), not user content — don't
+  confuse it with `/raw`.
+- `CONTENT_DIR` itself (`./content` locally, `/srv/www` on the VM) is **gitignored** — it's a runtime
+  mirror + curation state, not source. No system `pip` on this box; the venv is built with `uv`
+  (`uv venv .venv && uv pip install --python .venv/bin/python -r requirements.txt`).
 
 Full deploy steps (Docker Compose on VM 105, port 8088) are in `README.md` — don't duplicate them
 here, just read it before touching deployment.
@@ -29,42 +37,61 @@ VM. See `docs/deploy.md` for the one-time setup (GitHub remote, SSH key, first c
 it is a manual, interactive one-time step (password SSH, creating the GitHub repo), not something
 to redo per session.
 
-## Planned: per-page persistent storage
+## Per-page persistent storage — built (2026-08-04)
 
-The manifest only tracks *which files show on the homepage* — it has no concept of state belonging
-to an individual hosted page. That's the current gap: pages like `PT.html` need to persist their
-own data (checked exercises, logged sets, saved settings) across refreshes, and there's nowhere for
-that to live yet.
+The manifest only ever tracked *which files show on the homepage* — it had no concept of state
+belonging to an individual hosted page. That gap is closed: `app.py` now has a generic per-file
+key/value API, following the same philosophy as the manifest (plain JSON next to the content, no
+DB):
 
-Planned approach, following the same philosophy as the manifest (plain JSON next to the content,
-no DB):
-
-- A generic per-file key/value API in `app.py`, e.g. `GET/POST /api/storage/{content_path}/{key}`.
-- Backed by JSON on disk (e.g. one file per content path under a `_storage/` folder next to
-  `_manifest.json`), **namespaced by content path** so two unrelated hosted pages can never
-  collide on a key name.
-- Hosted pages call this via `fetch` for anything that should persist. Don't reach for
-  `localStorage` — state should survive across browsers/devices since this is server-hosted, that's
-  the whole point of building it here instead of leaving the file local.
+- `GET /api/storage/{content_path:path}?key={key}` → `{"value": <string-or-null>}`
+- `POST /api/storage/{content_path:path}` with body `{"key": ..., "value": <string>}` → `{"ok": true}`
+- Backed by a single `_storage.json` next to `_manifest.json`: `{content_path: {key: value}}`.
+  **Namespaced by content path** so two unrelated hosted pages can never collide on a key name —
+  see `_clean_ns()` in `app.py`.
+- Hosted pages call this via `fetch`, not `localStorage` — state survives across browsers/devices
+  since this is server-hosted, that's the whole point of building it here instead of leaving the
+  file local. A page finds its own `content_path` by parsing its own `/view/...` URL
+  (`location.pathname`) — see `PT.html`'s `CONTENT_PATH` for the reference pattern.
 
 ## Convention for every hosted content page
 
 1. **Back-to-home button/link near the top of the page**, pointing at `/` — these are pages you
    drill into from the library grid, so they need a way out that isn't the browser back button.
-2. **Persist through the storage API above**, not `localStorage` — once it exists, hosted pages
-   should use it for anything that needs to survive a refresh.
+2. **Persist through the storage API above**, not `localStorage`.
+3. **Favicon `<link>` tags** — same four tags pointing at `/static/favicon{,-16,-32,-180}.{svg,png}`
+   as `templates/index.html`, so the tab icon stays consistent a few clicks deep in the library.
 
-New pages added to the library should follow both from the start rather than being retrofitted.
+New pages added to the library should follow all three from the start rather than being retrofitted.
+`PT.html` is the reference implementation — copy its `sGet`/`sSet`/`CONTENT_PATH`, its `.home-link`,
+and its `<head>` favicon links for any new page.
 
-## First content file: PT.html
+## Local-only deploy button
 
-- Lives at `../PT.html` (one directory above this repo) — a daily PT/rehab routine tracker:
-  per-exercise checkboxes, a week strip, video links, and saved baseline test values.
-- It was originally written against a `window.storage.get(key)` / `.set(key, val)` API (see
-  `sGet`/`sSet`, currently around line 365) — that's the Claude.ai *artifacts* runtime's storage
-  capability, and it does not exist in a normal browser. Today it silently falls back to an
-  in-memory `mem` object, so **nothing persists across an actual page refresh** when served from
-  statichost.
-- To make it work here: point `sGet`/`sSet` at the storage API above instead of `window.storage`,
-  and add the back-to-home button per the convention. Then it can be dropped into `CONTENT_DIR`
-  like any other hosted file.
+The homepage has a bottom-left button that POSTs to `/api/deploy`, which shells out to
+`scripts/deploy.sh` — same script as the CLI, just triggered from the browser instead of a terminal.
+It only renders (and the endpoint only responds instead of 403ing) when `_is_local()` in `app.py`
+is true: `LOCAL_DEV=1` in the server's own env, or the request's actual TCP peer is loopback. Set
+`LOCAL_DEV=1` in the local dev-run command; **never** set it in `docker-compose.yml` — the VM must
+never show this button, since anything else on the LAN can reach it. The endpoint re-checks
+`_is_local()` itself rather than trusting the button's visibility, deliberately — don't remove that
+check even though it looks redundant with the template-side one.
+
+## sites/ — hosted pages live in this repo now (2026-08-04)
+
+Every "sub-site" (a hosted HTML page/tool) is tracked at `sites/<name>.html` (or a subfolder for
+one with its own assets) and shipped by the *same* deploy as the app itself — no separate copy step
+onto the server, ever. The whole point: "modify both the website and the specific sub-sites locally
+and have them all deployed together" (Brian, 2026-08-04) is just normal `git push` +
+`scripts/deploy.sh` now, same as any other code change.
+
+- **Edit `sites/<page>.html` directly** — never hand-edit the copy under `content/`/`/srv/www`,
+  it's overwritten by `_sync_sites()` on every restart and your edit would silently vanish.
+- Adding a brand new hosted page: drop it in `sites/`, commit, push, deploy — it shows up on the
+  homepage automatically (filesystem is still the source of truth for *what exists*), no code
+  changes needed anywhere.
+- `sites/PT.html` — a daily PT/rehab routine tracker: per-exercise checkboxes, streaks, a month-view
+  calendar background, video links, and saved baseline test values. Fully wired to the storage API
+  and has the back-to-home link — this is the page to copy from when adding the next one. (Brian's
+  original working copy at `../PT.html`, one directory above this repo, still exists but is now
+  superseded — `sites/PT.html` is the one that actually ships.)

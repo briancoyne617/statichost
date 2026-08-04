@@ -57,29 +57,66 @@ Host statichost-vm
 
 ### 3. First checkout on the VM
 
+**`/home/bc/statichost`, not `/opt`.** Unlike autoshopper (which runs bare on a venv and wanted a
+dedicated system user + root-owned `/opt` for that reason), this app runs in Docker — Docker itself
+is the isolation boundary, so there's nothing `/opt` + a separate owner would add. `bc` already owns
+`/home/bc`, so the checkout needs no `sudo` at all (only the docker-group fix below does, and that's
+one-time regardless of path).
+
+**Check what's already running first.** If `/srv/www` already has real content in it (a
+`_manifest.json`, hosted files) from the manual setup in `README.md`, a container may already be up
+under the name `library` — `docker-compose.yml` also names its container `library`, so a fresh
+`docker compose up` from a new checkout can collide with it. `sudo docker ps -a` before doing
+anything else. (If there's already a *non-git* copy of this repo sitting at `/home/bc/statichost`
+from before this pipeline existed — plausible, since that's exactly where the manual setup in
+`README.md` would have put it — don't `rm -rf` it blind: `mv` it aside first, e.g.
+`mv /home/bc/statichost /home/bc/statichost.bak`, so nothing is lost if it turns out to matter.)
+
+**`bc` needs to be in the `docker` group, not just have `sudo`.** Verified on this VM (2026-08-04):
+`bc` has `sudo` but it prompts for a password every time (no `NOPASSWD` entry), and `bc` was *not*
+in the `docker` group — `docker ps` as `bc` failed with `permission denied` on the socket.
+`scripts/deploy.sh` (and the deploy button) run `docker compose` with no `sudo` and need it to be
+fully non-interactive, so this has to be fixed before either will work:
+
 ```bash
 ssh bc@192.168.0.222
-command -v git || sudo apt install -y git      # docker + compose are already there — you're
-                                                 # already running this app's container per README
-sudo mkdir -p /opt/statichost && sudo chown bc:bc /opt/statichost
-git clone https://github.com/briancoyne617/statichost.git /opt/statichost   # add a deploy key first if you made it private
-cd /opt/statichost
+command -v git || sudo apt install -y git      # docker + compose are already there per README
+
+sudo usermod -aG docker bc                      # one-time, needs your password
+exit                                            # group membership needs a fresh login to take effect
+ssh bc@192.168.0.222
+docker ps                                       # should now work with no sudo, no error
+
+mv /home/bc/statichost /home/bc/statichost.bak 2>/dev/null   # only if something's already there
+git clone https://github.com/briancoyne617/statichost.git /home/bc/statichost   # public repo, no key needed
+cd /home/bc/statichost
 docker compose up -d --build
 ```
 
 `docker-compose.yml`'s volume (`/srv/www:/content`) is unchanged — point it at wherever your HTML
 already lives, same as the manual setup in `README.md`.
 
-If `bc` isn't already in the `docker` group, `sudo usermod -aG docker bc` (then log out/in) so
-`docker compose` doesn't need `sudo` — `scripts/deploy.sh` assumes it doesn't.
-
 ## Day to day
+
+Editing a hosted page (`sites/PT.html`, or any future one) ships through this exact same pipeline —
+there's no separate "now copy the file onto the server" step. `_sync_sites()` in `app.py` mirrors
+`sites/` into `CONTENT_DIR` on every app startup, and a deploy always ends in a restart
+(`docker compose up -d --build`), so a page edit and an app-code edit deploy identically:
 
 ```bash
 scripts/deploy.sh                 # push + redeploy in one command, once STATICHOST_VM is exported
 scripts/deploy.sh bc@192.168.0.222 # or pass the target explicitly, no env var needed
 ```
 
-Local iteration is untouched — run `uvicorn app:app --reload` (with `CONTENT_DIR` pointed at a
-local test folder) and look at `localhost:8000` same as always. The VM is only for "this is done,
-put it where my phone/other devices can reach it."
+Or click **Deploy** on the homepage itself (bottom-left) instead of switching to a terminal — it
+runs the exact same script. That button only appears when the server sees `LOCAL_DEV=1` in its own
+environment (or a loopback request), so it never shows up on the deployed instance:
+
+```bash
+CONTENT_DIR=./content SITE_TITLE="..." LOCAL_DEV=1 STATICHOST_VM=bc@192.168.0.222 \
+  uvicorn app:app --reload
+```
+
+Local iteration otherwise is untouched — run `uvicorn app:app --reload` (with `CONTENT_DIR` pointed
+at a local test folder) and look at `localhost:8000`/`8001` same as always. The VM is only for
+"this is done, put it where my phone/other devices can reach it."
