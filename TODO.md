@@ -82,6 +82,46 @@ crop. Verified for real this time: injected `<img>` elements into the live same-
 pixel is `RGBA(0,0,0,0)` — genuinely transparent), and visually confirmed the actual artwork renders
 cleanly against both white and dark backgrounds with no leftover box edge.
 
+**Second design pass (2026-08-04, same day):** Brian sent a second, clearer reference image and two
+notes — "looks like the book is falling off" and "make the bottom book have the paper visible not
+the binding." Root causes: the upright books + pencil cluster wasn't well-centered over the base
+book (uneven margins read as unstable/sliding), and the base book was a solid rose rect with only a
+small cream sliver at one end, reading as a plain block rather than a book. Rebuilt: base book is
+now a maroon/crimson cover (`#A8324A`) with a cream page-block (`#F7ECD9`) inset within it — visible
+pages framed by cover, not a flat color. Both upright books recolored into the same maroon/crimson
+family (`#6B2C3D` dark, `#B23A52` bright) instead of the previous plum+pink, and the whole cluster
+recentered directly over the base book's span. Regenerated PNGs the same (now-proven) way. Not yet
+redeployed — this round was local-only pending Brian's OK on the look.
+
+**Third pass:** the dark left book, drawn as a plain upright rect, read as tipping *left* (away from
+the stack) rather than leaning right into the taller book — a classic "leaning books" look needs an
+actual tilt, not just proximity. Added `transform="rotate(9 25 46)"` (pivoting on its own
+bottom-center, which sits on the base book) so its top leans right against the taller book instead.
+
+**Fourth pass:** Brian: "still leaning left" after the 9° fix. Verified the rotation math in
+isolation first (a standalone render with ruler lines) — it was genuinely correct, tilting right.
+The actual cause: the pencil (at -36°) crosses right over the book's top-left corner, and the two
+diagonals visually merge into what reads as one continuous *left*-leaning edge, regardless of the
+book's own (correct) rotation — confirmed by rendering the full composition at high zoom. Tried
+separating them with a gap first (moving the pencil left clipped its tip off the 64x64 canvas;
+shortening the pencil instead still left enough contact to read ambiguous). What actually worked:
+leave the pencil alone and increase the book's lean to **16°** — strong enough to read unambiguously
+as "leaning right" even where the pencil touches it, rather than trying to eliminate the contact.
+
+**Fifth pass — replaced hand-coded shapes with a traced vector (2026-08-07):** hand-tuning rotation
+angles on flat `<rect>`s kept fighting optical illusions (see fourth pass) without ever matching the
+reference closely enough. Brian ran the reference image through an image-to-SVG tool (Recraft AI, via
+a `.psd`) and dropped the result in as `image.psd(1).svg` — smooth bezier paths, gradient-shaded
+spines, both upright books at matching height, a pencil with a rounded cap/tip instead of a sharp
+point. Cleaned it up rather than hand-redrawing: stripped the ~13KB embedded C2PA provenance
+`<metadata>` blob (irrelevant to a favicon, pure bloat), removed one stray gradient-filled rect left
+over in the top-left corner (an artifact of the source crop, bounded to x[0,26] y[0,26]), and padded
+the viewBox from `0 0 127 137` to `-5 0 137 137` so it's square — the PNG generator stretches the SVG
+to fill a square viewport, so a non-square viewBox would otherwise get silently squashed ~7%
+vertically. This is now `static/favicon.svg`; PNGs regenerated via the same real-navigation pipeline
+from the second pass. Local-only until this note is removed — see whether it actually shipped via
+`git log -- static/favicon.svg`.
+
 ## Per-page storage + navigation — done (2026-08-04)
 - `app.py`: generic per-file storage API, `GET/POST /api/storage/{content_path}/{key}`, JSON-backed
   (`_storage.json`), namespaced per content path.
