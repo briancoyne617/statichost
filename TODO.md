@@ -122,6 +122,56 @@ vertically. This is now `static/favicon.svg`; PNGs regenerated via the same real
 from the second pass. Committed and deployed (`d08e494`) — verified live against the VM by `curl`ing
 `/static/favicon.svg` and matching it byte-for-byte against the local file.
 
+## Deploy button: git-status checklist + difftastic diff preview — done (2026-08-11)
+Brian: "Rip the git status and difftastic code from ../autoshopper, add it to deploy functionality
+here." Ported from `../autoshopper/ui/app.py` (`_git_dirty`, `_find_difft`, `_git_status_files`,
+`_git_diff_preview`, `_to_win_path`, the `/dev/git-status`+`/dev/git-diff`+`/dev/deploy` trio) and
+`../autoshopper/ui/templates/dev.html` (the deploy modal's checklist/diff-toggle/ANSI-to-HTML JS,
+`scripts/difft_wrap.sh`) — same shape, adapted to this app's own layout and visual language:
+- **Backend** (`app.py`): the deploy button's plain `confirm()` used to fire `/api/deploy` with no
+  visibility into what was actually about to ship — fine when the tree was clean, a real trap
+  when it wasn't (this bit us earlier this same session during the favicon work: the button
+  would've said "deployed" while the VM stayed on stale code, since nothing was committed yet).
+  Now: `index()` also computes `_git_dirty()` (best-effort `git status --porcelain`, local-only)
+  and passes it to the template. `/api/git-status` returns the changed-file list, each tagged with
+  a category via `_FILE_CATEGORIES` (Backend code / Hosted pages / Templates / static / Scripts /
+  Docs / Other — matches this repo's own top-level layout, not autoshopper's). `/api/git-diff`
+  builds a full working-tree diff: tracked changes go through git's `--ext-diff` machinery via
+  `scripts/difft_wrap.sh` (a WSL→Windows difft.exe shim, copied over unchanged apart from doc
+  comments pointing at `app.py`/`index.html` instead of `ui/app.py`/`dev.html`), untracked files
+  get diffed against an empty temp file so they show as a full addition. Falls back to plain
+  `git diff --color=always` when difftastic isn't installed — never raises, never blocks a deploy.
+  `/api/deploy` now takes optional `commit_message`/`files` form fields: when a message is given,
+  it `git add`s exactly the checked files (never `git add -A`) and commits before running
+  `scripts/deploy.sh`, so unchecking a row in the sheet genuinely leaves it out of the commit.
+- **New dependency**: `Form(...)` params need `python-multipart`, which FastAPI only imports
+  lazily — a clean venv (or a freshly-built Docker image) crashes at import time without it, not
+  at request time, so it surfaced immediately on `--reload` here. Added to `requirements.txt`
+  (same comment as autoshopper's own copy, which had already hit this). No Dockerfile change
+  needed — `COPY requirements.txt .` + `pip install` already picks up a new line on the next
+  `--build`.
+- **Frontend** (`templates/index.html`): reused the existing `.sheet`/`.panel` bottom-sheet
+  pattern (the curate editor already established it) for the new deploy sheet instead of
+  introducing autoshopper's separate `.deploy-modal` look — one modal shape per app, not two.
+  Added a `deployNow()` that only opens the sheet when `GIT_DIRTY` (server-rendered); a clean tree
+  still gets the original one-click `confirm()` path, unchanged. Checklist groups by category with
+  per-row "all"/"none", a lazy-loaded "Show diff" toggle (widens the panel, since difftastic's
+  side-by-side needs real columns), and a small hand-rolled ANSI SGR→HTML converter for the diff
+  pre block (difftastic and plain `git diff --color=always` both only ever emit basic 16-color
+  codes, so no library needed). New CSS custom properties (`--amber`, `--green`, plus a full
+  `--ansi-*` palette, light+dark) added alongside the existing `--accent`/`--accent-2` tokens.
+  Extended the page's existing `esc()` helper to also escape `>` (needed for the diff text, wasn't
+  needed by the editor's own use of it before now).
+- Verified end to end against the local dev server with Playwright: dirty-tree FAB shows the amber
+  dot and correct title; opening the sheet loads and correctly categorizes the actual changed files
+  from this session's own work; per-category "all"/"none" toggle checkboxes correctly; Escape
+  closes the sheet; "Show diff" loads a real difftastic side-by-side render (confirmed via
+  screenshot — proper syntax highlighting, correct old/new columns) and widens the panel; empty
+  commit message is blocked by the same `alert()` guard as autoshopper's.
+- **Deliberately not yet committed/deployed** — this changes what the deploy button itself does,
+  so it gets the same "verify locally first" treatment as everything else this session, and a
+  meta-change like this is worth Brian's own eyes on before it ships.
+
 ## PT.html: per-set click-through + one-click hold timer — done (2026-08-10)
 Brian: "For things that are timed, add a one click timer (no seconds or anything, just a bar moving
 across the top or something elegant), and for things with multiple sets, have clicking it need to

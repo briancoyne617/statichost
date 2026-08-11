@@ -32,8 +32,8 @@ import subprocess
 from datetime import datetime
 from pathlib import Path
 
-from fastapi import FastAPI, Request
-from fastapi.responses import FileResponse, JSONResponse
+from fastapi import FastAPI, Form, Request
+from fastapi.responses import FileResponse, JSONResponse, PlainTextResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
 
@@ -41,8 +41,9 @@ CONTENT_DIR = Path(os.environ.get("CONTENT_DIR", "./content")).resolve()
 MANIFEST = CONTENT_DIR / "_manifest.json"
 STORAGE = CONTENT_DIR / "_storage.json"
 SITE_TITLE = os.environ.get("SITE_TITLE", "Library")
-DEPLOY_SCRIPT = Path(__file__).parent / "scripts" / "deploy.sh"
-SITES_DIR = Path(__file__).parent / "sites"
+_REPO_ROOT = Path(__file__).parent
+DEPLOY_SCRIPT = _REPO_ROOT / "scripts" / "deploy.sh"
+SITES_DIR = _REPO_ROOT / "sites"
 
 
 def _sync_sites():
@@ -163,23 +164,199 @@ def _discover() -> list[dict]:
 @app.get("/")
 async def index(request: Request, edit: int = 0):
     items = _discover()
+    local = _is_local(request)
     return templates.TemplateResponse("index.html", {
         "request": request,
         "site_title": SITE_TITLE,
         "items": items if not edit else items,          # editor shows hidden ones too
         "visible_items": [i for i in items if i["visible"]],
         "edit": bool(edit),
-        "show_deploy": _is_local(request),
+        "show_deploy": local,
+        "git_dirty": _git_dirty() if local else False,
     })
 
 
+def _git_dirty() -> bool:
+    """True if the working tree has anything `git add -A` would pick up. Best-effort — a git
+    failure here just means the dirty-indicator/commit-prompt doesn't show; it does NOT gate the
+    deploy route itself, which re-decides for real from the commit_message it's actually given."""
+    try:
+        status = subprocess.run(["git", "status", "--porcelain"], cwd=str(_REPO_ROOT),
+                                capture_output=True, text=True, timeout=10)
+        return bool(status.stdout.strip())
+    except Exception:
+        return False
+
+
+def _find_difft() -> str | None:
+    """difftastic, if installed — structural diff, much easier to skim before a deploy than a
+    raw unified diff. This dev box has it via `winget install difftastic` (a Windows install
+    reached from WSL through the kernel's binfmt interop, since it's not in apt and there's no
+    passwordless sudo here to add it) rather than a native Linux binary — so PATH alone won't
+    find it even once installed, and the winget package path is versioned, so it's globbed
+    rather than hardcoded. Re-checked on every call, not cached at import time, so
+    installing/upgrading it doesn't need an app restart to take effect. Returns None (never
+    raises) when it's missing — callers fall back to plain `git diff`."""
+    import shutil, glob
+    for name in ("difft", "difft.exe"):
+        found = shutil.which(name)
+        if found:
+            return found
+    matches = glob.glob("/mnt/c/Users/*/AppData/Local/Microsoft/WinGet/Packages/"
+                        "Wilfred.difftastic_*/difft.exe")
+    return matches[0] if matches else None
+
+
+_DIFFT_WRAP = _REPO_ROOT / "scripts" / "difft_wrap.sh"
+
+# Buckets for the deploy sheet's file checklist — first match wins, "Other" is the catch-all.
+# Matches this repo's own top-level layout (see CLAUDE.md): sites/ is hosted-page content,
+# distinct from the app's own backend/template code even though both are just "code" to git.
+_FILE_CATEGORIES = [
+    ("Backend code",       lambda p: p.endswith(".py")),
+    ("Hosted pages",       lambda p: p.startswith("sites/")),
+    ("Templates / static", lambda p: p.startswith("templates/") or p.startswith("static/")),
+    ("Scripts",            lambda p: p.startswith("scripts/")),
+    ("Docs",               lambda p: p.startswith("docs/") or p.endswith(".md")),
+]
+
+
+def _categorize_file(path: str) -> str:
+    for name, test in _FILE_CATEGORIES:
+        if test(path):
+            return name
+    return "Other"
+
+
+def _git_status_files() -> list:
+    """Parsed `git status --porcelain`, one entry per changed path, with the category the deploy
+    sheet groups it under. Renames ("R  old -> new") collapse to just the new path — good enough
+    for a checklist that's about what changes, not full rename tracking."""
+    out = subprocess.run(["git", "status", "--porcelain"], cwd=str(_REPO_ROOT),
+                         capture_output=True, text=True, timeout=10).stdout
+    files = []
+    for line in out.splitlines():
+        if not line.strip():
+            continue
+        code, rel = line[:2].strip() or "??", line[3:].strip()
+        if " -> " in rel:
+            rel = rel.split(" -> ", 1)[1]
+        files.append({"path": rel, "status": code, "category": _categorize_file(rel)})
+    return files
+
+
+@app.get("/api/git-status")
+def git_status(request: Request):
+    """File checklist for the deploy sheet — see templates/index.html. Separate from
+    /api/git-diff because the checklist needs to render before anyone asks for the (slower,
+    difftastic-shelling-out) diff, and populating it shouldn't wait on that."""
+    if not _is_local(request):
+        return JSONResponse({"error": "not available"}, status_code=403)
+    try:
+        return JSONResponse({"files": _git_status_files()})
+    except Exception as e:
+        return JSONResponse({"error": str(e)}, status_code=500)
+
+
+def _to_win_path(posix_path: str) -> str:
+    """Windows-style path for a POSIX one — required before handing ANY path to difft.exe (see
+    _find_difft): WSL's binfmt interop lets you exec a Windows binary from a Linux shell but
+    does not translate its argv, so a raw /mnt/c/... or /tmp/... path is meaningless to it.
+    wslpath handles both (a real drive path for /mnt/c, a \\\\wsl.localhost\\...\\ UNC path for
+    anything WSL-internal — verified difft.exe can read a /tmp file through that). Falls back to
+    the original path on any failure, which just means that one diff comes back empty rather
+    than the whole preview failing."""
+    try:
+        r = subprocess.run(["wslpath", "-w", posix_path], capture_output=True, text=True, timeout=5)
+        return r.stdout.strip() or posix_path
+    except Exception:
+        return posix_path
+
+
+def _git_diff_preview() -> str:
+    """Everything `git add -A` would pick up, as one readable diff — tracked changes vs HEAD
+    plus untracked files (each diffed against an empty file so a brand-new file shows as a full
+    addition instead of being silently skipped, which plain `git diff` does for anything not yet
+    in the index). Read-only: never runs `git add`, so previewing the diff can't itself change
+    what a later commit picks up.
+
+    Tracked changes go through git's own --ext-diff machinery (scripts/difft_wrap.sh), because
+    git already handles extracting the HEAD blob into a temp file per changed path —
+    reimplementing that with `git show HEAD:path` here would just be a worse copy of what git
+    already does correctly, including renames/deletes."""
+    difft = _find_difft()
+    status = subprocess.run(["git", "status", "--porcelain"], cwd=str(_REPO_ROOT),
+                            capture_output=True, text=True, timeout=10).stdout
+    if not status.strip():
+        return "Working tree is clean — nothing to diff."
+    parts = []
+    if difft:
+        env = dict(os.environ, DIFFT_EXE=difft, GIT_EXTERNAL_DIFF=f"bash {_DIFFT_WRAP}")
+        tracked = subprocess.run(["git", "diff", "--ext-diff", "HEAD", "--"],
+                                 cwd=str(_REPO_ROOT), capture_output=True, text=True,
+                                 timeout=60, env=env)
+    else:
+        tracked = subprocess.run(["git", "diff", "--color=always", "HEAD", "--"],
+                                 cwd=str(_REPO_ROOT), capture_output=True, text=True, timeout=30)
+    if tracked.stdout.strip():
+        parts.append(tracked.stdout.strip())
+    elif tracked.stderr.strip():
+        parts.append(f"[git diff stderr]\n{tracked.stderr.strip()}")
+
+    for line in status.splitlines():
+        if not line.startswith("??"):
+            continue
+        rel = line[3:].strip()
+        full = str(_REPO_ROOT / rel)
+        if difft:
+            import tempfile
+            fd, empty_path = tempfile.mkstemp(prefix="statichost_diff_empty_")
+            os.close(fd)
+            try:
+                d = subprocess.run([difft, "--color=always", "--display=side-by-side",
+                                    "--width=220", _to_win_path(empty_path), _to_win_path(full)],
+                                   capture_output=True, text=True, timeout=20)
+                body = d.stdout or d.stderr
+            finally:
+                os.unlink(empty_path)
+        else:
+            d = subprocess.run(["git", "diff", "--color=always", "--no-index", "--",
+                                os.devnull, rel], cwd=str(_REPO_ROOT), capture_output=True,
+                               text=True, timeout=20)
+            body = d.stdout or d.stderr
+        parts.append(f"+++ new file: {rel} +++\n{body.strip()}")
+    return "\n\n".join(parts) or "Working tree is clean — nothing to diff."
+
+
+@app.get("/api/git-diff", response_class=PlainTextResponse)
+def git_diff(request: Request):
+    """Diff preview behind the deploy sheet's "Show diff" toggle — see templates/index.html.
+    Same local-only gate as the deploy button itself; this is read access to source code, not a
+    new capability, but it's still dev-box-only like everything else the deploy button gates."""
+    if not _is_local(request):
+        return PlainTextResponse("not available", status_code=403)
+    try:
+        return PlainTextResponse(_git_diff_preview())
+    except Exception as e:
+        return PlainTextResponse(f"Could not build diff: {e}", status_code=500)
+
+
 @app.post("/api/deploy")
-def deploy(request: Request):
+def deploy(request: Request, commit_message: str = Form(""), files: list[str] = Form([])):
     """Runs scripts/deploy.sh (push + remote reset + rebuild) so 'ship what I'm looking at' is a
     button instead of a terminal round-trip. Same script, same blast radius as running it by hand
     — this is convenience, not a new capability. Declared `def`, not `async def`, so FastAPI runs
     the (blocking, tens-of-seconds) subprocess in its worker threadpool rather than freezing the
-    event loop for every other request while a deploy is in flight."""
+    event loop for every other request while a deploy is in flight.
+
+    deploy.sh's own push step is deliberately the ONLY way committed code reaches the VM (reset
+    --hard there, never a merge) — but "Everything up-to-date" while the tree sits full of
+    uncommitted work is confusing enough to hit for real: the button says "deployed" and the VM
+    genuinely is, just not with what's on screen (this bit us during the favicon work this same
+    session — the fix that time was committing by hand first). `commit_message`, when non-blank,
+    stages exactly `files` (the checked rows from the deploy sheet's checklist, see
+    templates/index.html) and commits before deploying — never `git add -A` blindly, so
+    unchecking something in the sheet actually leaves it out."""
     if not _is_local(request):
         return JSONResponse({"error": "not available"}, status_code=403)
     vm = os.environ.get("STATICHOST_VM")
@@ -188,6 +365,27 @@ def deploy(request: Request):
             {"error": "STATICHOST_VM isn't set in this server's environment — export it and restart."},
             status_code=400,
         )
+    commit_message = commit_message.strip()
+    if commit_message:
+        if not files:
+            return JSONResponse({"ok": False,
+                "output": "No files selected to commit."}, status_code=400)
+        try:
+            subprocess.run(["git", "add", "--"] + files, cwd=str(_REPO_ROOT), check=True,
+                            capture_output=True, text=True, timeout=30)
+            commit = subprocess.run(
+                ["git", "commit", "-m", commit_message],
+                cwd=str(_REPO_ROOT), capture_output=True, text=True, timeout=30,
+            )
+            if commit.returncode != 0:
+                return JSONResponse({"ok": False, "output":
+                    "git commit failed:\n" + commit.stdout + commit.stderr}, status_code=500)
+        except subprocess.CalledProcessError as e:
+            return JSONResponse({"ok": False, "output":
+                "git add failed:\n" + (e.stdout or "") + (e.stderr or "")}, status_code=500)
+        except subprocess.TimeoutExpired:
+            return JSONResponse({"ok": False,
+                "output": "git add/commit timed out"}, status_code=504)
     try:
         proc = subprocess.run(
             ["bash", str(DEPLOY_SCRIPT), vm],
@@ -198,7 +396,9 @@ def deploy(request: Request):
         out = ((e.stdout or "") + (e.stderr or ""))[-4000:]
         return JSONResponse({"ok": False, "output": out + "\n[timed out after 180s]"}, status_code=504)
     output = (proc.stdout + proc.stderr)[-4000:]
-    return JSONResponse({"ok": proc.returncode == 0, "output": output}, status_code=200 if proc.returncode == 0 else 500)
+    prefix = f"Committed as {commit_message!r}\n\n" if commit_message else ""
+    return JSONResponse({"ok": proc.returncode == 0, "output": prefix + output},
+                        status_code=200 if proc.returncode == 0 else 500)
 
 
 @app.post("/api/manifest")
