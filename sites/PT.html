@@ -101,14 +101,17 @@ header{padding:26px 0 6px}
 .group-head .rule{flex:1;height:1px;background:var(--line)}
 
 /* ── card ── */
-.ex{background:var(--card);border:1px solid var(--line);border-radius:var(--r);margin-bottom:8px;overflow:hidden;transition:border-color .25s,background .15s}
+.ex{position:relative;background:var(--card);border:1px solid var(--line);border-radius:var(--r);margin-bottom:8px;overflow:hidden;transition:border-color .25s,background .15s}
 .ex.done{border-color:#B9C29B;background:#F2F3E6}
 .ex.done .ex-name{color:var(--moss-deep)}
+.ex.timing{border-color:var(--moss)}
+.ex-bar{position:absolute;top:0;left:0;height:3px;width:0%;background:var(--moss);z-index:2;pointer-events:none}
 
 .ex-row{padding:13px 14px 13px 12px;display:flex;gap:12px;align-items:flex-start;cursor:pointer;user-select:none;-webkit-user-select:none}
 .ex-row:active{background:var(--card-press)}
-.ex .tick{flex-shrink:0;width:26px;height:26px;border-radius:9px;margin-top:1px;border:1.5px solid var(--ink-faint);background:transparent;display:flex;align-items:center;justify-content:center;transition:all .2s}
-.ex .tick svg{opacity:0;transform:scale(.6);transition:all .2s;width:13px;height:13px}
+.ex .tick{flex-shrink:0;position:relative;overflow:hidden;width:26px;height:26px;border-radius:9px;margin-top:1px;border:1.5px solid var(--ink-faint);background:transparent;display:flex;align-items:center;justify-content:center;transition:all .2s}
+.ex .tick-fill{position:absolute;left:0;right:0;bottom:0;height:0%;background:var(--moss);transition:height .25s cubic-bezier(.4,0,.2,1)}
+.ex .tick svg{position:relative;z-index:1;opacity:0;transform:scale(.6);transition:all .2s;width:13px;height:13px}
 .ex.done .tick{background:var(--moss);border-color:var(--moss)}
 .ex.done .tick svg{opacity:1;transform:scale(1)}
 .ex-body{flex:1;min-width:0}
@@ -328,75 +331,77 @@ const EXERCISES = [
   {t:'foot', id:'toe-yoga', g:'a', days:[1,2,3,4,5,6], name:'Toe yoga', dose:'10 / foot · slow',
    q:'toe yoga exercise big toe lift physical therapy tutorial',
    cue:'Big toe up, four down — then swap. Use your hands to assist until the pattern clicks. Warm-up for the brain-foot connection, not a strength lift.'},
-  {t:'foot', id:'short-foot', g:'a', days:[1,2,3,4,5,6], name:'Short foot', dose:'5s hold × 10 / foot',
+  {t:'foot', id:'short-foot', g:'a', days:[1,2,3,4,5,6], name:'Short foot', dose:'5s hold × 10 / foot', sets:10, hold:5,
    q:'short foot exercise arch doming tutorial intrinsic foot muscles',
    cue:'Pull the ball of the big toe toward the heel without curling toes — the arch domes up. Progress across the weeks: seated → standing → single-leg standing. The progression is the exercise.'},
   {t:'foot', id:'barefoot-walk', g:'a', days:[2], name:'Barefoot walk', dose:'10–20 min · varied ground',
    q:'barefoot walking technique foot strength natural gait',
    cue:'Active recovery. Slow and deliberate — feel the tripod (heel, big-toe ball, little-toe ball) on every step.'},
-  {t:'foot', id:'balance-play', g:'a', days:[6], name:'Balance practice', dose:'3 × max hold / side · eyes closed',
+  {t:'foot', id:'balance-play', g:'a', days:[6], name:'Balance practice', dose:'3 × max hold / side · eyes closed', sets:3,
    q:'single leg balance eyes closed proprioception training progression',
    cue:'Barefoot single-leg stands, eyes closed. Play with it — head turns, slow reaches. Track your best; it feeds the week-8 retest.'},
 
-  {t:'foot', id:'wall-rocks', g:'m', days:[1,3,4,5], name:'Wall ankle rocks', dose:'2 × 15 pulses / side',
+  {t:'foot', id:'wall-rocks', g:'m', days:[1,3,4,5], name:'Wall ankle rocks', dose:'2 × 15 pulses / side', sets:2,
    q:'knee to wall ankle mobility drill dorsiflexion heel down',
    cue:'Knee-to-wall position at your current max distance. Heel glued, drive the knee over the toes, gentle pulses at end range. Doubles as a progress check — when it gets easy, move the foot back 1cm.'},
-  {t:'foot', id:'heel-elev-squat', g:'m', days:[1,3,4,5], name:'Heel-elevated squat pry', dose:'2 × 45s hold',
+  {t:'foot', id:'heel-elev-squat', g:'m', days:[1,3,4,5], name:'Heel-elevated squat pry', dose:'2 × 45s hold', sets:2, hold:45,
    q:'heel elevated deep squat hold ankle mobility pry',
    cue:'Heels on a board, sink to full depth, shift side to side and pry the knees forward. Loaded end-range time is what actually changes range — hold something heavy at your chest to deepen it.'},
-  {t:'foot', id:'band-distract', g:'m', days:[1,3,4,5], name:'Banded ankle glide (optional)', dose:'2 × 10 / side',
+  {t:'foot', id:'band-distract', g:'m', days:[1,3,4,5], name:'Banded ankle glide (optional)', dose:'2 × 10 / side', sets:2,
    q:'banded ankle distraction mobilization dorsiflexion talus glide',
    cue:'Heavy band low, looped at the ankle crease pulling back, lunge the knee forward. Adjunct only — skip if short on time, the loaded work does more.'},
 
-  {t:'foot', id:'soleus-raise', g:'l', days:[1,3,5], name:'Bent-knee calf raises', dose:'3 × 12 / side · 3s down',
+  {t:'foot', id:'soleus-raise', g:'l', days:[1,3,5], name:'Bent-knee calf raises', dose:'3 × 12 / side · 3s down', sets:3,
    q:'bent knee calf raise soleus strengthening off a step tutorial',
    cue:'Knee bent ~30° throughout, off a step for full range. Targets the soleus — the actual limiter in knee-over-toe dorsiflexion. Deep stretch at the bottom, slow eccentric, add load as it gets easy.'},
-  {t:'foot', id:'tib-raise', g:'l', days:[1,3,5], name:'Tibialis raises', dose:'3 × 15',
+  {t:'foot', id:'tib-raise', g:'l', days:[1,3,5], name:'Tibialis raises', dose:'3 × 15', sets:3,
    q:'tibialis anterior raise against wall exercise tutorial',
    cue:'Back to a wall, heels a foot out, lift both forefeet as high as possible, lower slow. You have to actively pull into dorsiflexion at the bottom of a pistol — this is that muscle.'},
-  {t:'foot', id:'step-down', g:'l', days:[1,3,5], name:'Slow step-downs', dose:'3 × 8 / leg · 4s down',
+  {t:'foot', id:'step-down', g:'l', days:[1,3,5], name:'Slow step-downs', dose:'3 × 8 / leg · 4s down', sets:3,
    q:'eccentric single leg step down slow control technique',
    cue:'On a box or stair, lower the free heel to a soft tap over 4 seconds, stand back up on the working leg only. The eccentric is the point.'},
-  {t:'foot', id:'cossack', g:'l', days:[1,3,5], name:'Cossack squats', dose:'3 × 8 / side · 2s bottom',
+  {t:'foot', id:'cossack', g:'l', days:[1,3,5], name:'Cossack squats', dose:'3 × 8 / side · 2s bottom', sets:3,
    q:'cossack squat tutorial technique beginner progression',
    cue:'Wide stance, squat to one side with that foot flat, other leg straight, toe up. Hold a light counterweight out front if you tip backward.'},
-  {t:'foot', id:'assisted-pistol', g:'l', days:[1,3,5], name:'Assisted pistols', dose:'3 × 5 / leg · full depth',
+  {t:'foot', id:'assisted-pistol', g:'l', days:[1,3,5], name:'Assisted pistols', dose:'3 × 5 / leg · full depth', sets:3,
    q:'assisted pistol squat progression counterweight beginner',
    cue:'Hold a doorframe or strap and do the FULL pistol — all the way down and up — using the arms as little as possible. Or hold a 5–10 lb weight straight out as a counterweight. Grooving the real movement from day one is what the original program missed.'},
 
-  {t:'elbow', id:'elb-arom', g:'em', days:[0,1,2,3,4,5,6], name:'Active bend & straighten', dose:'15 reps · 3× through the day',
+  {t:'elbow', id:'elb-arom', g:'em', days:[0,1,2,3,4,5,6], name:'Active bend & straighten', dose:'15 reps · 3× through the day', sets:3,
    q:'active elbow range of motion exercise flexion extension rehab',
    cue:'Under your own muscle power only. Bend fully, then straighten as far as it comfortably goes and hold 2 seconds at the end. High frequency, low intensity — the single most important thing on the list. Little and often beats one hard session.'},
-  {t:'elbow', id:'elb-rot', g:'em', days:[0,1,2,3,4,5,6], name:'Palm up / palm down', dose:'15 each way · 2× daily',
+  {t:'elbow', id:'elb-rot', g:'em', days:[0,1,2,3,4,5,6], name:'Palm up / palm down', dose:'15 each way · 2× daily', sets:2,
    q:'forearm pronation supination exercise elbow rehab range of motion',
    cue:'Elbow pinned to your ribs at 90°, rotate the palm fully up then fully down. Forearm rotation is half of elbow function and takes direct load in an americana. Most people skip it and stay stiff.'},
-  {t:'elbow', id:'elb-hang', g:'em', days:[0,1,2,3,4,5,6], name:'Gravity extension rest', dose:'3 × 90s · relaxed',
+  {t:'elbow', id:'elb-hang', g:'em', days:[0,1,2,3,4,5,6], name:'Gravity extension rest', dose:'3 × 90s · relaxed', sets:3, hold:90,
    q:'low load prolonged stretch elbow extension gravity assisted rehab',
    cue:'Forearm off the edge of a table, palm up, small towel under the upper arm. Let gravity do it and completely relax. No pressing with the other hand — low load, long duration.'},
 
-  {t:'elbow', id:'elb-grip', g:'es', days:[0,1,2,3,4,5,6], name:'Grip squeezes', dose:'5 × 10s hold',
+  {t:'elbow', id:'elb-grip', g:'es', days:[0,1,2,3,4,5,6], name:'Grip squeezes', dose:'5 × 10s hold', sets:5, hold:10,
    q:'grip strengthening isometric squeeze hand therapy exercise',
    cue:'Rolled towel, ball, or gripper. Squeeze hard, breathe, release. Grip work loads and dynamically stabilizes the elbow and is the fastest-responding marker of recovery.'},
-  {t:'elbow', id:'elb-wristflex', g:'es', days:[1,2,3,4,5,6], name:'Wrist flexion + pronation eccentrics', dose:'3 × 15 · 3s down · PRIORITY',
+  {t:'elbow', id:'elb-wristflex', g:'es', days:[1,2,3,4,5,6], name:'Wrist flexion + pronation eccentrics', dose:'3 × 15 · 3s down · PRIORITY', sets:3,
    q:'wrist flexor eccentric exercise golfers elbow pronation hammer',
    cue:'Forearm on your thigh, palm up, light weight. Lift with help from the other hand, lower over 3 seconds alone. Then a set of slow pronation with a hammer held short. This is your priority drill — the flexor-pronator mass is the dynamic stabilizer for the medial, pinky-side elbow you actually strained.'},
-  {t:'elbow', id:'elb-wristext', g:'es', days:[1,3,5], name:'Wrist extension eccentrics', dose:'3 × 15 · 3s down',
+  {t:'elbow', id:'elb-wristext', g:'es', days:[1,3,5], name:'Wrist extension eccentrics', dose:'3 × 15 · 3s down', sets:3,
    q:'wrist extensor eccentric exercise tennis elbow slow lowering',
    cue:'Same setup, palm down. Maintenance work for the lateral side — keep it in, but weight the flexion side heavier given where your pain sits.'},
-  {t:'elbow', id:'elb-iso', g:'es', days:[1,3,5], name:'Elbow isometric holds', dose:'4 × 30s · 70% effort',
+  {t:'elbow', id:'elb-iso', g:'es', days:[1,3,5], name:'Elbow isometric holds', dose:'4 × 30s · 70% effort', sets:4, hold:30,
    q:'elbow isometric exercise flexion extension rehabilitation hold',
    cue:'Press into an immovable object both ways — try to bend, then try to straighten — at an angle that stays comfortable. Builds capacity without moving through irritable range. Stop at sharp pain, not at discomfort.'},
 
-  {t:'elbow', id:'elb-er', g:'eh', days:[1,3,5], name:'Shoulder external rotation', dose:'3 × 15 · light band',
+  {t:'elbow', id:'elb-er', g:'eh', days:[1,3,5], name:'Shoulder external rotation', dose:'3 × 15 · light band', sets:3,
    q:'shoulder external rotation band exercise elbow at side technique',
    cue:'Elbow at your side, bent 90°, rotate the forearm outward against a band. The americana attacks shoulder internal rotation — building the external rotators is what defends the position next time.'},
-  {t:'elbow', id:'elb-scap', g:'eh', days:[1,3,5], name:'Band pull-aparts', dose:'3 × 15',
+  {t:'elbow', id:'elb-scap', g:'eh', days:[1,3,5], name:'Band pull-aparts', dose:'3 × 15', sets:3,
    q:'band pull apart proper form scapular retraction tutorial',
    cue:'Squeeze the shoulder blades back and down, slow return. Scapular control takes load off both the shoulder and the elbow when someone is cranking on your arm.'},
   {t:'elbow', id:'elb-ir-rom', g:'eh', days:[1,3,5], name:'Shoulder rotation range', dose:'10 slow reps each way',
    q:'shoulder internal external rotation range of motion exercise 90 90',
    cue:'Arm out to the side, elbow bent, rotate the hand toward your head then toward your hip, only as far as is comfortable. Restoring the americana range under your own control is how you stop flinching in it.'},
 ];
+
+const EX_BY_ID = Object.fromEntries(EXERCISES.map(e=>[e.id,e]));
 
 const DAY_TYPE = {
   0:{label:'REST · ELBOW ONLY', cls:'session-rest'},
@@ -583,7 +588,7 @@ function renderHeader(){
 }
 
 function renderArch(){
-  const list=exercisesFor(viewDate), done=list.filter(e=>dayLog[e.id]).length, total=list.length;
+  const list=exercisesFor(viewDate), done=list.filter(e=>isFullyDone(e,dayLog[e.id])).length, total=list.length;
   const pct=total?done/total:0, fill=document.getElementById('archFill');
   fill.style.strokeDasharray=ARCH_LEN; fill.style.strokeDashoffset=ARCH_LEN*(1-pct);
   document.getElementById('archCount').textContent=total?`${done} of ${total}`:'Rest';
@@ -591,6 +596,7 @@ function renderArch(){
 }
 
 function renderSession(){
+  clearAllTimers();   // cards are about to be torn down — any pending timer's card ref would go stale
   const body=document.getElementById('sessionBody'), list=exercisesFor(viewDate);
   if(!list.length){
     body.innerHTML=`<div class="rest-card"><div class="big">Full rest</div>
@@ -606,9 +612,11 @@ function renderSession(){
     for(const e of exs){
       const isOpen=openCards.has(e.id);
       const hasVid=!!getVid(e.id);
-      html+=`<div class="ex ${dayLog[e.id]?'done':''} ${isOpen?'open':''}" data-id="${e.id}">
-        <div class="ex-row" role="button" tabindex="0" aria-pressed="${!!dayLog[e.id]}">
-          <div class="tick"><svg viewBox="0 0 13 13" fill="none"><path d="M2.5 7L5.2 9.7 10.5 3.5" stroke="#F2F3E6" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
+      const sets=e.sets||1, count=Math.min(doneCount(e,dayLog[e.id]),sets), full=count>=sets;
+      html+=`<div class="ex ${full?'done':''} ${isOpen?'open':''}" data-id="${e.id}">
+        <div class="ex-bar"></div>
+        <div class="ex-row" role="button" tabindex="0" aria-pressed="${full}">
+          <div class="tick"><div class="tick-fill" style="height:${Math.round(count/sets*100)}%"></div><svg viewBox="0 0 13 13" fill="none"><path d="M2.5 7L5.2 9.7 10.5 3.5" stroke="#F2F3E6" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></div>
           <div class="ex-body">
             <div class="ex-name">${esc(e.name)}</div>
             <div class="ex-dose">${esc(e.dose)}</div>
@@ -628,14 +636,14 @@ function renderSession(){
 
 function wireCards(body){
   body.querySelectorAll('.ex').forEach(card=>{
-    const id=card.dataset.id, row=card.querySelector('.ex-row');
+    const e=EX_BY_ID[card.dataset.id], row=card.querySelector('.ex-row');
     row.addEventListener('click',ev=>{
       if(ev.target.closest('.ex-expand')) return;   // handled below
-      toggleExercise(id,card,row);
+      advanceExercise(e,card,row);
     });
     row.addEventListener('keydown',ev=>{
       if(ev.target.closest('.ex-expand')) return;
-      if(ev.key==='Enter'||ev.key===' '){ ev.preventDefault(); toggleExercise(id,card,row); }
+      if(ev.key==='Enter'||ev.key===' '){ ev.preventDefault(); advanceExercise(e,card,row); }
     });
   });
   body.querySelectorAll('.ex-expand').forEach(btn=>{
@@ -699,20 +707,70 @@ function wireCards(body){
   });
 }
 
-async function toggleExercise(id,card,row){
-  dayLog[id]=!dayLog[id];
-  if(!dayLog[id]) delete dayLog[id];
-  card.classList.toggle('done',!!dayLog[id]);
-  row.setAttribute('aria-pressed',!!dayLog[id]);
+/* ── per-set progress ──
+   dayLog[e.id] is either absent (0 sets done), a number (sets done so far, mid-progress),
+   or `true` (legacy shorthand for "fully done" — also what a completed item gets normalized
+   to, so old logs written before multi-set tracking existed still read as complete). */
+function doneCount(e,raw){
+  if(raw===true) return e.sets||1;
+  if(typeof raw==='number') return raw;
+  return 0;
+}
+function isFullyDone(e,raw){ return doneCount(e,raw)>=(e.sets||1); }
+
+/* ── one-click hold timer: a bar fills the card's top edge over e.hold seconds; when it
+   completes, that's one set. Tapping a card mid-timer cancels it instead of starting another —
+   this is a live-hold aid, not a stopwatch log, so there's no way to skip the wait. ── */
+const activeTimers={};
+function clearAllTimers(){ for(const id in activeTimers) clearTimeout(activeTimers[id]); for(const id in activeTimers) delete activeTimers[id]; }
+function cancelTimer(e,card){
+  if(!activeTimers[e.id]) return;
+  clearTimeout(activeTimers[e.id]); delete activeTimers[e.id];
+  card.classList.remove('timing');
+  const bar=card.querySelector('.ex-bar');
+  bar.style.transition='none'; bar.style.width='0%';
+}
+function startTimer(e,card,row){
+  card.classList.add('timing');
+  const bar=card.querySelector('.ex-bar');
+  bar.style.transition='none'; bar.style.width='0%';
+  void bar.offsetWidth;   // force reflow so the width jump above lands before the transition starts
+  bar.style.transition=`width ${e.hold}s linear`;
+  bar.style.width='100%';
+  activeTimers[e.id]=setTimeout(()=>{
+    delete activeTimers[e.id];
+    card.classList.remove('timing');
+    bar.style.transition='none'; bar.style.width='0%';
+    commitCount(e,card,row,doneCount(e,dayLog[e.id])+1);
+  },e.hold*1000);
+}
+
+async function commitCount(e,card,row,count){
+  const sets=e.sets||1;
+  if(count<=0) delete dayLog[e.id];
+  else dayLog[e.id]=count>=sets?true:count;
+  const full=isFullyDone(e,dayLog[e.id]);
+  card.classList.toggle('done',full);
+  row.setAttribute('aria-pressed',full);
+  const fill=card.querySelector('.tick-fill');
+  if(fill) fill.style.height=Math.round(Math.min(count,sets)/sets*100)+'%';
   renderArch();
   await sSet(logKey(viewDate),dayLog);
   renderWeek(); renderCalendar(); renderStreak(); flashSaved();
 }
 
+async function advanceExercise(e,card,row){
+  if(activeTimers[e.id]){ cancelTimer(e,card); return; }
+  const sets=e.sets||1, cur=doneCount(e,dayLog[e.id]);
+  if(cur>=sets){ await commitCount(e,card,row,0); return; }   // fully done — tap to undo
+  if(e.hold){ startTimer(e,card,row); return; }
+  await commitCount(e,card,row,cur+1);
+}
+
 function summarize(d,log){
   const all=EXERCISES.filter(e=>e.days.includes(d.getDay())&&(track==='all'||e.t===track));
-  const ids=new Set(all.map(e=>e.id));
-  return {done:Object.keys(log||{}).filter(k=>ids.has(k)).length, total:all.length, _raw:log};
+  const done=all.filter(e=>isFullyDone(e,log&&log[e.id])).length;
+  return {done, total:all.length, _raw:log};
 }
 
 async function renderWeek(){

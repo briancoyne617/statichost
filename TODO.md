@@ -119,8 +119,46 @@ over in the top-left corner (an artifact of the source crop, bounded to x[0,26] 
 the viewBox from `0 0 127 137` to `-5 0 137 137` so it's square — the PNG generator stretches the SVG
 to fill a square viewport, so a non-square viewBox would otherwise get silently squashed ~7%
 vertically. This is now `static/favicon.svg`; PNGs regenerated via the same real-navigation pipeline
-from the second pass. Local-only until this note is removed — see whether it actually shipped via
-`git log -- static/favicon.svg`.
+from the second pass. Committed and deployed (`d08e494`) — verified live against the VM by `curl`ing
+`/static/favicon.svg` and matching it byte-for-byte against the local file.
+
+## PT.html: per-set click-through + one-click hold timer — done (2026-08-10)
+Brian: "For things that are timed, add a one click timer (no seconds or anything, just a bar moving
+across the top or something elegant), and for things with multiple sets, have clicking it need to
+happen that many times to fully check and show progress via the check box filling up."
+- Every `EXERCISES` entry with a "N ×" dose now carries an explicit `sets` field (and `hold` in
+  seconds for the ones that are a timed hold, e.g. `'2 × 45s hold'` → `sets:2, hold:45`) — added as
+  data rather than parsed out of the free-text `dose` string at render time, since the dose text has
+  too many shapes (`'5s hold × 10 / foot'` reverses the order) to parse reliably and the array
+  already carries per-exercise metadata this way.
+- `dayLog[e.id]` now holds either a number (sets completed so far) or `true` (fully done — also what
+  a completed item gets normalized to, so it stays compatible with every log ever written before
+  this feature existed). `doneCount()`/`isFullyDone()` are the only things that read it; `summarize()`
+  (streaks, week strip, calendar month-wall) was updated to go through `isFullyDone()` instead of raw
+  key presence.
+- The checkbox (`.tick`) got a `.tick-fill` layer that grows from 0–100% height as sets complete,
+  clipped to the tick's rounded corners. Tapping a card with `sets>1` advances the count by one and
+  fills proportionally; tapping a fully-filled card resets it to zero (same "tap to undo" as before).
+- Exercises with `hold` get a thin `.ex-bar` across the card's top edge instead of an instant
+  increment: tap starts it, a CSS `width` transition runs it from 0→100% over `hold` seconds, and
+  completion auto-advances one set (bar resets, ready for the next). Deliberately a live-hold aid, not
+  a stopwatch log — tapping again *while it's running cancels it*, there's no way to skip the wait.
+  No numeric countdown shown, per the "no seconds or anything" ask.
+- `renderSession()` now calls a new `clearAllTimers()` before rebuilding `#sessionBody`'s HTML —
+  needed because day/track navigation and even unrelated edits (video URL, trim fields) all rebuild
+  every card from scratch, and a `setTimeout` left pointing at an about-to-be-detached card would
+  otherwise fire later and silently write a stray set-completion against whatever day happened to be
+  open by then.
+- **Verified past data is unaffected before shipping** (Brian asked explicitly): wrote a fake
+  legacy-shaped log (`{"tib-raise":true}`, the exact shape every session before this feature produced)
+  onto a past date via the storage API directly, reloaded, and confirmed it still renders fully
+  checked (100% fill, counted correctly in the day's arch total) — `_storage.json` itself is untouched
+  by any deploy regardless (gitignored, lives in the `CONTENT_DIR` volume, never touched by
+  `_sync_sites()`), so shipping this only changes how *new* taps are interpreted, never past records.
+- Verified interactively with Playwright against the local dev server: a 3-set non-timed exercise
+  (Tibialis raises) fills 33%→67%→100%→resets across four taps; a 5×10s timed exercise (Grip
+  squeezes) starts the bar on tap, cancels cleanly on a second tap mid-run, and auto-completes one set
+  (20% fill) after running the full 10s uninterrupted.
 
 ## Per-page storage + navigation — done (2026-08-04)
 - `app.py`: generic per-file storage API, `GET/POST /api/storage/{content_path}/{key}`, JSON-backed
