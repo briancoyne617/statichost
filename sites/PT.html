@@ -57,9 +57,17 @@ header{padding:26px 0 6px}
    watermark rather than a widget. Many small months, not one big one: mostly grey now, and
    it fills in with real color a month at a time as this actually gets used. ── */
 .cal-bg{position:fixed;inset:0;z-index:0;pointer-events:none;overflow:hidden;padding:20px}
-.cal-bg-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(130px,1fr));
-  grid-auto-rows:min-content;align-content:space-between;gap:26px 14px;width:100%;height:100%;opacity:.6}
-.cal-bg-tile{display:flex;flex-direction:column;align-items:center;gap:6px}
+/* flex, not grid: CSS Grid's auto-fill always fills from the top-left, so whichever row runs
+   short (because the estimated month count in estimateCalBgMonthCount() never lines up exactly
+   with the browser's own real column count) ends up as a ragged gap next to TODAY at the
+   bottom — the opposite of where a gap should be. row-reverse + wrap-reverse fills from the
+   bottom-right instead: each row packs right-to-left, and new rows stack upward, so the current
+   month is always flush in the bottom-right corner and any leftover slack lands up at the
+   top-left (missing older history), not down here next to the present. Relies on renderCalendar()
+   handing tiles to the DOM newest-first to match. */
+.cal-bg-grid{display:flex;flex-direction:row-reverse;flex-wrap:wrap-reverse;
+  justify-content:flex-start;align-content:flex-start;gap:26px 14px;width:100%;height:100%;opacity:.6}
+.cal-bg-tile{display:flex;flex-direction:column;align-items:center;gap:6px;flex:0 0 130px}
 .cal-bg-tile-label{font-family:'IBM Plex Mono',monospace;font-size:10px;letter-spacing:.12em;
   color:var(--ink-faint);opacity:.8}
 .cal-bg-tile-grid{display:grid;grid-template-columns:repeat(7,1fr);gap:4px}
@@ -104,7 +112,7 @@ header{padding:26px 0 6px}
 .ex{position:relative;background:var(--card);border:1px solid var(--line);border-radius:var(--r);margin-bottom:8px;overflow:hidden;transition:border-color .25s,background .15s}
 .ex.done{border-color:#B9C29B;background:#F2F3E6}
 .ex.done .ex-name{color:var(--moss-deep)}
-.ex.timing{border-color:var(--moss)}
+.ex.timing,.ex.holding{border-color:var(--moss)}
 .ex-bar{position:absolute;top:0;left:0;height:3px;width:0%;background:var(--moss);z-index:2;pointer-events:none}
 
 .ex-row{padding:13px 14px 13px 12px;display:flex;gap:12px;align-items:flex-start;cursor:pointer;user-select:none;-webkit-user-select:none}
@@ -596,7 +604,7 @@ function renderArch(){
 }
 
 function renderSession(){
-  clearAllTimers();   // cards are about to be torn down — any pending timer's card ref would go stale
+  clearAllTimers(); clearAllPresses();   // cards are about to be torn down — any pending timer/press's card ref would go stale
   const body=document.getElementById('sessionBody'), list=exercisesFor(viewDate);
   if(!list.length){
     body.innerHTML=`<div class="rest-card"><div class="big">Full rest</div>
@@ -639,11 +647,30 @@ function wireCards(body){
     const e=EX_BY_ID[card.dataset.id], row=card.querySelector('.ex-row');
     row.addEventListener('click',ev=>{
       if(ev.target.closest('.ex-expand')) return;   // handled below
+      if(pressState[e.id]&&pressState[e.id].fired){ delete pressState[e.id]; return; }   // long-press already handled this
       advanceExercise(e,card,row);
     });
     row.addEventListener('keydown',ev=>{
       if(ev.target.closest('.ex-expand')) return;
       if(ev.key==='Enter'||ev.key===' '){ ev.preventDefault(); advanceExercise(e,card,row); }
+    });
+    // Long-press (or long-click) to force a card fully done in one go — for reps done away from
+    // the app (a set counted by feel, a hold timed by hand) where waiting out the normal
+    // multi-tap/timer flow just to log it after the fact is pure friction. A short tap/click
+    // still goes through advanceExercise above as before; only a sustained hold skips ahead.
+    row.addEventListener('pointerdown',ev=>{
+      if(ev.target.closest('.ex-expand')) return;
+      if(ev.pointerType==='mouse'&&ev.button!==0) return;
+      if(isFullyDone(e,dayLog[e.id])) return;   // already done — a tap already resets it, nothing to force
+      startLongPress(e,card,row,ev.clientX,ev.clientY);
+    });
+    ['pointerup','pointerleave','pointercancel'].forEach(evt=>{
+      row.addEventListener(evt,()=>cancelLongPress(e,card));
+    });
+    row.addEventListener('pointermove',ev=>{
+      const st=pressState[e.id];
+      if(!st||st.fired) return;
+      if(Math.abs(ev.clientX-st.x)>10||Math.abs(ev.clientY-st.y)>10) cancelLongPress(e,card);   // a real drag/scroll, not a hold
     });
   });
   body.querySelectorAll('.ex-expand').forEach(btn=>{
@@ -720,7 +747,8 @@ function isFullyDone(e,raw){ return doneCount(e,raw)>=(e.sets||1); }
 
 /* ── one-click hold timer: a bar fills the card's top edge over e.hold seconds; when it
    completes, that's one set. Tapping a card mid-timer cancels it instead of starting another —
-   this is a live-hold aid, not a stopwatch log, so there's no way to skip the wait. ── */
+   this is meant as a live-hold aid. (Already did the reps off-app and just want it logged?
+   Long-press instead — see startLongPress() below — skips the wait entirely.) ── */
 const activeTimers={};
 function clearAllTimers(){ for(const id in activeTimers) clearTimeout(activeTimers[id]); for(const id in activeTimers) delete activeTimers[id]; }
 function cancelTimer(e,card){
@@ -765,6 +793,49 @@ async function advanceExercise(e,card,row){
   if(cur>=sets){ await commitCount(e,card,row,0); return; }   // fully done — tap to undo
   if(e.hold){ startTimer(e,card,row); return; }
   await commitCount(e,card,row,cur+1);
+}
+
+/* ── long-press to force-complete ──
+   Skips both the multi-tap count AND the hold timer in one go, for whenever the reps already
+   happened away from the app and waiting through the normal flow just to log them is pure
+   friction. The checkbox fill animates to 100% over LONG_PRESS_MS as the hold's own visual
+   feedback (release early and it snaps back — see cancelLongPress); a full hold past that marks
+   the exercise done and sets `fired` so the trailing click (pointerup always ends in one) gets
+   swallowed instead of ALSO running advanceExercise on top of it. */
+const LONG_PRESS_MS=550;
+const pressState={};
+function startLongPress(e,card,row,x,y){
+  const fill=card.querySelector('.tick-fill');
+  const restoreHeight=fill.style.height;
+  fill.style.transition=`height ${LONG_PRESS_MS}ms linear`;
+  fill.style.height='100%';
+  card.classList.add('holding');
+  const timer=setTimeout(()=>{
+    pressState[e.id]={fired:true};
+    forceComplete(e,card,row);
+  },LONG_PRESS_MS);
+  pressState[e.id]={timer,restoreHeight,x,y,fired:false};
+}
+function cancelLongPress(e,card){
+  const st=pressState[e.id];
+  if(!st||st.fired) return;   // already fired — let the click handler clean that up instead
+  clearTimeout(st.timer);
+  delete pressState[e.id];
+  card.classList.remove('holding');
+  const fill=card.querySelector('.tick-fill');
+  fill.style.transition='height .25s cubic-bezier(.4,0,.2,1)';
+  fill.style.height=st.restoreHeight;
+}
+function clearAllPresses(){
+  for(const id in pressState){ if(pressState[id].timer) clearTimeout(pressState[id].timer); }
+  for(const id in pressState) delete pressState[id];
+}
+async function forceComplete(e,card,row){
+  cancelTimer(e,card);   // a live hold-timer for this exercise loses to a force-complete
+  card.classList.remove('holding');
+  await commitCount(e,card,row,e.sets||1);
+  const fill=card.querySelector('.tick-fill');
+  if(fill) fill.style.transition='height .25s cubic-bezier(.4,0,.2,1)';
 }
 
 function summarize(d,log){
@@ -840,7 +911,13 @@ async function renderStreak(){
    covers a big desktop monitor and doesn't overflow a small one (numbers below match the CSS
    tile/dot/gap sizes above — keep them in sync if those change). Only the most recent
    CAL_BG_LABEL_MONTHS get a label; older ones are bare dots, no month/year text at all.
-   Purely decorative (pointer-events:none on the container): no click handling. ── */
+   Purely decorative (pointer-events:none on the container): no click handling.
+
+   The current month always anchors the bottom-right corner — see .cal-bg-grid's CSS for the
+   row-reverse/wrap-reverse fill this depends on. This estimate is just that, an estimate (the
+   real browser column count can be off by a tile or two from the pixel math below), so `total`
+   is rarely an EXACT multiple of the real row length; whatever's short lands as slack up at
+   top-left instead of as a gap next to today. ── */
 const CAL_BG_MIN_MONTHS=12, CAL_BG_MAX_MONTHS=140, CAL_BG_LABEL_MONTHS=12;
 function estimateCalBgMonthCount(){
   const dotPitch=14+4;                        // .cal-bg-dot width + .cal-bg-tile-grid gap
@@ -893,7 +970,10 @@ async function renderCalendar(){
   }));
 
   if(myToken!==calRenderToken) return;
-  document.getElementById('calBgGrid').innerHTML=tiles.join('');
+  // Newest-first into the DOM — .cal-bg-grid's row-reverse/wrap-reverse fill (see its CSS)
+  // places the FIRST child at the bottom-right and walks backward from there, so the current
+  // month has to be first for it to land in that corner.
+  document.getElementById('calBgGrid').innerHTML=tiles.slice().reverse().join('');
 }
 
 async function loadDay(){
