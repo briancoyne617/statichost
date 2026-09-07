@@ -98,22 +98,34 @@ and have them all deployed together" (Brian, 2026-08-04) is just normal `git pus
 
 ## Home network buttons (2026-09-05)
 
-The homepage has a second section, above the file library, of plain bookmark buttons to other
-services on the LAN(s) Brian has access to. These aren't hosted content or filesystem-discovered,
-so unlike everything else on this page they're just a hardcoded list: `EXTERNAL_LINKS` in
-`app.py`, a list of `{section, groups}` — each `section` a physical location, each group inside it
-a `{heading, links}` list rendered in order. Edit that list directly to add/remove/re-point/reorder
-one — there's no editor UI for it.
+The homepage has a second section, below the file library (and collapsed by default, see below),
+of plain bookmark buttons to other services on the LAN(s) Brian has access to. These aren't hosted
+content or filesystem-discovered, so unlike everything else on this page they're just a hardcoded
+list: `EXTERNAL_LINKS` in `app.py`, a list of `{section, groups}` — each `section` a physical
+location, each group inside it a `{heading, links}` list rendered in order. Edit that list directly
+to add/remove/re-point/reorder one — there's no editor UI for it.
+
+The whole thing renders inside a `<details class="ext-section">` (no `open` attribute → collapsed
+on load) with a small muted "External services" `<summary>`, deliberately reading as tertiary next
+to the file library above it — it's a bolted-on convenience, not this app's actual job. Every
+button card is a fixed size (`.ext-card{height:58px}`, flex-centered) regardless of content, so one
+entry with a `note` tooltip doesn't visually stick out taller than its neighbors; a `note` shows as
+a hover tooltip (`title` attr) rather than a visible second line, which is what used to cause that.
+The dev-instance liveness probes (next paragraph) still run immediately on page load even while
+the section is collapsed, so badges are already correct the moment someone expands it.
 
 Two sections currently: **Home network** (Brooklyn) and **Millrock** (New Paltz, reached over
-WireGuard — see `../haos/TODO.md` for both locations' Proxmox/HA addresses). Home network has three
+WireGuard — see `../haos/TODO.md` for both locations' Proxmox/HA addresses). Home network has two
 groups, in display order:
-1. **Infra appliances** (no heading) — Proxmox, WireGuard (WGDashboard), Pi-hole, Home Assistant.
-   Production-only: there's no such thing as a "dev Pi-hole", so these never get a dev badge at all
-   (no `dev_url` key → the template skips the badge entirely, not just greys it out).
+1. **Infra appliances** (no heading) — Proxmox, WireGuard (WGDashboard), Pi-hole, Home Assistant,
+   **StaticHost** (this app's own deployed instance). All production-only appliances of this LAN,
+   including StaticHost itself — it doesn't get a separate "Static sites" category, since the
+   actual *static pages* this app hosts (PT.html etc.) are the unrelated file-library grid at the
+   top of the page, not anything in this list. Being infra doesn't mean no dev badge here, though:
+   StaticHost still carries a `dev_url` (unlike Proxmox/WireGuard/Pi-hole/Home Assistant, which
+   have no dev counterpart and so never get a dev badge at all — no `dev_url` key → the template
+   skips the badge entirely, not just greys it out).
 2. **Dynamic sites** — Plot Finder, AutoShopper. Real backends, each with a dev instance.
-3. **Static sites** — StaticHost (this app), pointing at its own deployed VM as prod and its local
-   dev server as dev.
 
 Millrock currently only has the infra group (Proxmox + Home Assistant) — its Proxmox MCP target
 (192.168.0.36) fails cert verification from this dev environment, unlike Home's, so its

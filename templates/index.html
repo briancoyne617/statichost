@@ -135,12 +135,15 @@
   }
   .deploy-toast{position:fixed;left:20px;bottom:72px;max-width:min(420px,calc(100vw - 40px));
        background:var(--surface);border:1.5px solid var(--border);border-radius:12px;
-       box-shadow:var(--shadow);padding:.7rem .9rem;font-size:12.5px;line-height:1.5;
+       box-shadow:var(--shadow);padding:.7rem 2rem .7rem .9rem;font-size:12.5px;line-height:1.5;
        display:none;z-index:50;white-space:pre-wrap;font-family:ui-monospace,monospace;
        max-height:40vh;overflow:auto}
   .deploy-toast.show{display:block}
   .deploy-toast.ok{color:var(--text)}
   .deploy-toast.err{color:var(--accent-2);border-color:var(--accent-2)}
+  .deploy-toast-close{position:absolute;top:.5rem;right:.6rem;background:none;border:none;
+       color:var(--text-3);font-family:inherit;font-size:15px;line-height:1;cursor:pointer;padding:.15rem}
+  .deploy-toast-close:hover{color:var(--text)}
 
   /* Editor */
   .sheet{position:fixed;inset:0;background:rgba(0,0,0,.35);display:none;z-index:60;
@@ -314,7 +317,10 @@
     <path d="M12 19V5"/><path d="M5 12l7-7 7 7"/>
   </svg>
 </button>
-<div class="deploy-toast" id="deployToast"></div>
+<div class="deploy-toast" id="deployToast">
+  <button type="button" class="deploy-toast-close" onclick="closeDeployToast()" aria-label="Dismiss">&times;</button>
+  <div id="deployToastBody"></div>
+</div>
 
 <div class="sheet" id="deploySheet" onclick="if(event.target===this)closeDeploySheet()">
   <div class="panel" id="deployPanel">
@@ -483,11 +489,16 @@
     runDeploy(msg, files);
   }
 
+  function closeDeployToast(){
+    document.getElementById('deployToast').classList.remove('show');
+  }
+
   async function runDeploy(commitMessage, files){
-    var btn=document.getElementById('deployBtn'), toast=document.getElementById('deployToast');
+    var btn=document.getElementById('deployBtn'), toast=document.getElementById('deployToast'),
+        body_=document.getElementById('deployToastBody');
     btn.disabled=true;
     toast.className='deploy-toast show';
-    toast.textContent=(commitMessage?'Committing + deploying':'Deploying')+'… can take a couple minutes.';
+    body_.textContent=(commitMessage?'Committing + deploying':'Deploying')+'… can take a couple minutes.';
     try{
       var body=new URLSearchParams();
       if(commitMessage) body.set('commit_message', commitMessage);
@@ -495,11 +506,11 @@
       var r=await fetch('/api/deploy',{method:'POST', body: body});
       var j=await r.json();
       toast.className='deploy-toast show '+(j.ok?'ok':'err');
-      toast.textContent=(j.ok?'✓ Deployed\n\n':'✗ Failed\n\n')+(j.output||j.error||'');
+      body_.textContent=(j.ok?'✓ Deployed\n\n':'✗ Failed\n\n')+(j.output||j.error||'');
       if(j.ok) btn.classList.remove('dirty');   // tree is clean again after a successful commit+deploy
     }catch(e){
       toast.className='deploy-toast show err';
-      toast.textContent='✗ Request failed: '+e;
+      body_.textContent='✗ Request failed: '+e;
     }finally{
       btn.disabled=false;
     }

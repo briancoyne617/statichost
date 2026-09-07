@@ -51,10 +51,13 @@ SITES_DIR = _REPO_ROOT / "sites"
 # for the file grid.
 #
 # Top-level entries are physical *locations* ("Home network" — Brooklyn, "Millrock" — the New
-# Paltz Proxmox host reached over WireGuard), each broken into the same three groups: infra
-# appliances (production-only — never get a dev badge, since there's no such thing as a "dev
-# Pi-hole"), dynamic sites (apps with real backends: AutoShopper, Plot Finder), and static sites
-# (this app itself). A location with nothing in a given group just omits that group's dict.
+# Paltz Proxmox host reached over WireGuard), each broken into groups: infra appliances (no
+# heading — production-only, never get a dev badge, since there's no such thing as a "dev
+# Pi-hole"; StaticHost lives here too even though it has a dev_url, since it's a deployed appliance
+# of this LAN just like the others, not a separate "site" category) and dynamic sites (apps with
+# real backends: AutoShopper, Plot Finder). A location with nothing in a given group just omits
+# that group's dict. The actual hosted *static pages* (PT.html etc.) are the unrelated file-library
+# grid at the top of the page — not represented in this list at all, see `_discover()`.
 #
 # `dev_url`, when set, gets a small "hammer" badge on the card that links to the dev instance —
 # the template live-checks it from the viewer's own browser (fetch, no-cors) and only enables the
@@ -81,16 +84,14 @@ EXTERNAL_LINKS = [
             {"name": "WireGuard", "host": "192.168.0.201:10086", "url": "http://192.168.0.201:10086/#/signin"},
             {"name": "Pi-hole", "host": "192.168.0.151/admin", "url": "http://192.168.0.151/admin"},
             {"name": "Home Assistant", "host": "192.168.0.227:8123", "url": "http://192.168.0.227:8123"},
+            {"name": "StaticHost", "host": "192.168.0.222:8088", "url": "http://192.168.0.222:8088",
+             "dev_url": "http://localhost:8001"},
         ]},
         {"heading": "Dynamic sites", "links": [
             {"name": "Plot Finder", "host": "localhost:8000", "url": None,
              "dev_url": "http://localhost:8000", "note": "no prod deployment — dev only"},
             {"name": "AutoShopper", "host": "192.168.0.224:8077", "url": "http://192.168.0.224:8077",
              "dev_url": "http://localhost:8077"},
-        ]},
-        {"heading": "Static sites", "links": [
-            {"name": "StaticHost", "host": "192.168.0.222:8088", "url": "http://192.168.0.222:8088",
-             "dev_url": "http://localhost:8001"},
         ]},
     ]},
     {"section": "Millrock", "groups": [
