@@ -45,6 +45,62 @@ _REPO_ROOT = Path(__file__).parent
 DEPLOY_SCRIPT = _REPO_ROOT / "scripts" / "deploy.sh"
 SITES_DIR = _REPO_ROOT / "sites"
 
+# Buttons to other services on the home LAN — these aren't hosted content, they're just bookmarks
+# to other apps, so they're a plain hardcoded list rather than anything filesystem/manifest-driven.
+# Edit this list directly to add/remove/re-point one; there's no editor UI for it the way there is
+# for the file grid.
+#
+# Top-level entries are physical *locations* ("Home network" — Brooklyn, "Millrock" — the New
+# Paltz Proxmox host reached over WireGuard), each broken into the same three groups: infra
+# appliances (production-only — never get a dev badge, since there's no such thing as a "dev
+# Pi-hole"), dynamic sites (apps with real backends: AutoShopper, Plot Finder), and static sites
+# (this app itself). A location with nothing in a given group just omits that group's dict.
+#
+# `dev_url`, when set, gets a small "hammer" badge on the card that links to the dev instance —
+# the template live-checks it from the viewer's own browser (fetch, no-cors) and only enables the
+# badge if that dev server actually answers, since "is it running right now" isn't something the
+# server can know either; the badge is omitted entirely when `dev_url` is absent, not just greyed
+# out. Dev instances only ever run on Brian's own workstation, reachable only from a browser on
+# that same machine (WSL2's automatic localhost port-forwarding is what makes `localhost:<port>`
+# work there at all) — hence plain `localhost` URLs rather than the workstation's LAN IP; the live
+# probe naturally leaves the badge off for anyone viewing from a different device.
+#
+# `url` (the prod link) is None for anything with no deployed prod instance at all (currently just
+# Plot Finder) — the template renders that card as an empty/disabled placeholder and puts the real,
+# working link on the hammer badge instead.
+#
+# Millrock currently only lists Proxmox + Home Assistant — the Millrock Proxmox MCP target
+# (192.168.0.36) fails cert verification (SSLCertVerificationError) from this environment, unlike
+# the Home target, so its VMs/containers couldn't be enumerated the way Home's were (which is how
+# WireGuard/Pi-hole/AutoShopper were discovered there). Fix that target's cert trust and re-run the
+# same discovery to fill this section in.
+EXTERNAL_LINKS = [
+    {"section": "Home network", "groups": [
+        {"heading": None, "links": [
+            {"name": "Proxmox", "host": "192.168.0.191:8006", "url": "https://192.168.0.191:8006"},
+            {"name": "WireGuard", "host": "192.168.0.201:10086", "url": "http://192.168.0.201:10086/#/signin"},
+            {"name": "Pi-hole", "host": "192.168.0.151/admin", "url": "http://192.168.0.151/admin"},
+            {"name": "Home Assistant", "host": "192.168.0.227:8123", "url": "http://192.168.0.227:8123"},
+        ]},
+        {"heading": "Dynamic sites", "links": [
+            {"name": "Plot Finder", "host": "localhost:8000", "url": None,
+             "dev_url": "http://localhost:8000", "note": "no prod deployment — dev only"},
+            {"name": "AutoShopper", "host": "192.168.0.224:8077", "url": "http://192.168.0.224:8077",
+             "dev_url": "http://localhost:8077"},
+        ]},
+        {"heading": "Static sites", "links": [
+            {"name": "StaticHost", "host": "192.168.0.222:8088", "url": "http://192.168.0.222:8088",
+             "dev_url": "http://localhost:8001"},
+        ]},
+    ]},
+    {"section": "Millrock", "groups": [
+        {"heading": None, "links": [
+            {"name": "Proxmox", "host": "192.168.0.36:8006", "url": "https://192.168.0.36:8006"},
+            {"name": "Home Assistant", "host": "192.168.0.205:8123", "url": "http://192.168.0.205:8123"},
+        ]},
+    ]},
+]
+
 
 def _sync_sites():
     """Mirror sites/ (tracked in git — the pages you actually edit) into CONTENT_DIR (the live
@@ -173,6 +229,7 @@ async def index(request: Request, edit: int = 0):
         "edit": bool(edit),
         "show_deploy": local,
         "git_dirty": _git_dirty() if local else False,
+        "external_links": EXTERNAL_LINKS,
     })
 
 

@@ -95,3 +95,60 @@ and have them all deployed together" (Brian, 2026-08-04) is just normal `git pus
   and has the back-to-home link — this is the page to copy from when adding the next one. (Brian's
   original working copy at `../PT.html`, one directory above this repo, still exists but is now
   superseded — `sites/PT.html` is the one that actually ships.)
+
+## Home network buttons (2026-09-05)
+
+The homepage has a second section, above the file library, of plain bookmark buttons to other
+services on the LAN(s) Brian has access to. These aren't hosted content or filesystem-discovered,
+so unlike everything else on this page they're just a hardcoded list: `EXTERNAL_LINKS` in
+`app.py`, a list of `{section, groups}` — each `section` a physical location, each group inside it
+a `{heading, links}` list rendered in order. Edit that list directly to add/remove/re-point/reorder
+one — there's no editor UI for it.
+
+Two sections currently: **Home network** (Brooklyn) and **Millrock** (New Paltz, reached over
+WireGuard — see `../haos/TODO.md` for both locations' Proxmox/HA addresses). Home network has three
+groups, in display order:
+1. **Infra appliances** (no heading) — Proxmox, WireGuard (WGDashboard), Pi-hole, Home Assistant.
+   Production-only: there's no such thing as a "dev Pi-hole", so these never get a dev badge at all
+   (no `dev_url` key → the template skips the badge entirely, not just greys it out).
+2. **Dynamic sites** — Plot Finder, AutoShopper. Real backends, each with a dev instance.
+3. **Static sites** — StaticHost (this app), pointing at its own deployed VM as prod and its local
+   dev server as dev.
+
+Millrock currently only has the infra group (Proxmox + Home Assistant) — its Proxmox MCP target
+(192.168.0.36) fails cert verification from this dev environment, unlike Home's, so its
+VMs/containers couldn't be enumerated the same way Home's were (that's how WireGuard/Pi-hole/
+AutoShopper got discovered there in the first place). Fix that target's cert trust, then re-run the
+same `get_vms`/`get_containers` discovery against it to fill Millrock's section in properly.
+
+Entries anywhere in the list can carry a `dev_url` — a small "hammer" badge in the card's top-right
+corner links to it. That badge is **live-checked from the viewer's own browser**
+(`fetch(..., {mode:'no-cors'})` in `templates/index.html`, on page load) and starts
+crossed-out/unclickable; it only lights up if the dev instance actually answers right now. The
+server has no way to know that itself (a dev box can be off), so "assume unreachable until the
+browser proves otherwise" is the only state that isn't sometimes a lie.
+
+All current `dev_url`s are plain `http://localhost:<port>` — AutoShopper (`:8077`), Plot Finder
+(`:8000`), StaticHost itself (`:8001`, matching the port `docs/deploy.md`'s local-iteration command
+actually binds to, see below) — because every dev instance only ever runs on Brian's own
+workstation. That only resolves correctly in a browser running *on* that workstation (WSL2's
+automatic localhost port-forwarding is what makes it work there at all); the live probe naturally
+leaves the badge off for anyone viewing from a different device, which is the correct behavior, not
+a bug to fix.
+
+Plot Finder has no deployed prod instance at all (it's `uv run python -m http.server -d web 8000`
+on Brian's workstation, run manually) — its card renders as an empty/disabled placeholder
+(`url: None`) with the real, working link on the hammer badge instead of the card body.
+
+The reverse link exists too: the Home Assistant home dashboard (`lovelace`/`home` view, "Home
+network" section's HA instance) has a `type: shortcut` badge titled "StaticHost" that opens
+`http://192.168.0.222:8088` — added via the HA MCP's `ha_config_set_dashboard`, appended to that
+view's badge list. If StaticHost's deployed URL ever changes, that badge needs a matching update.
+
+**Local dev port note:** port 8000 on Brian's workstation is shadowed by a pre-existing Windows
+portproxy rule unrelated to this repo (see `../autoshopper/docs/deploy.md`'s "leave the port 8000
+rule alone") — `http://localhost:8000` from a Windows browser does *not* reach a `uvicorn --reload`
+run in WSL bound to 8000, even though it works fine from inside WSL itself. Local iteration on this
+repo therefore actually runs on **8001** in practice (`uvicorn app:app --reload --port 8001`), not
+the 8000 `docs/deploy.md` shows as the plain default — that's also why StaticHost's own `dev_url`
+above is `:8001`.
